@@ -15,11 +15,40 @@
     <h1>Расчёт пряжи для вязания</h1>
   </header>
 
-  <nav class="top-nav" aria-label="Разделы приложения">
+  <nav id="top-nav" class="top-nav" aria-label="Разделы приложения" hidden>
     <button type="button" class="top-nav-btn" data-page="my-projects">Мои проекты</button>
     <button type="button" class="top-nav-btn active" data-page="constructor">Конструктор</button>
     <button type="button" class="top-nav-btn" data-page="yarn-base">База пряжи</button>
+    <button type="button" id="btn-logout" class="top-nav-btn">Выйти</button>
   </nav>
+
+  
+  <section id="page-login" class="page active">
+    <h2>Вход</h2>
+    <form id="form-login" class="auth-card">
+      <input id="login-username" type="text" placeholder="Логин" required />
+      <input id="login-password" type="password" placeholder="Пароль" required />
+      <button type="submit">Войти</button>
+      <button type="button" id="go-register">Регистрация</button>
+    </form>
+  </section>
+  <section id="page-register" class="page hidden">
+    <h2>Регистрация</h2>
+    <form id="form-register" class="auth-card">
+      <input id="register-username" type="text" placeholder="Логин" required />
+      <input id="register-password" type="password" placeholder="Пароль" required />
+      <button type="submit">Создать аккаунт</button>
+      <button type="button" id="go-login">Назад ко входу</button>
+    </form>
+  </section>
+  <section id="page-main" class="page hidden">
+    <h2 id="main-welcome">Добро пожаловать!</h2>
+    <div class="main-grid">
+      <button class="main-nav-btn" data-page="my-projects">Мои проекты</button>
+      <button class="main-nav-btn" data-page="yarn-base">База пряжи</button>
+      <button class="main-nav-btn" data-page="constructor">Конструктор</button>
+    </div>
+  </section>
 
   <section id="page-my-projects" class="page hidden" aria-label="Мои проекты">
     <div class="library-section">
