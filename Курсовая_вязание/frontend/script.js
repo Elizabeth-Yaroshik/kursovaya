@@ -1,5 +1,7 @@
-const API_BASE = 'http://127.0.0.1:5000';
-
+const API_BASE = (() => {
+  const host = window.location.hostname || '127.0.0.1';
+  return `http://${host}:5000`;
+})();
 /** @type {fabric.Canvas | null} */
 let appCanvas = null;
 
@@ -80,13 +82,18 @@ async function apiGet(path) {
 }
 
 async function apiFetchJson(path, options = {}) {
-  const res = await fetch(`${API_BASE}${path}`, {
+ let res;
+  try {
+    res = await fetch(`${API_BASE}${path}`, {
     ...options,
     headers: {
       'Content-Type': 'application/json',
       ...authHeaders(options.headers || {}),
     },
   });
+  } catch (err) {
+    throw new Error('Не удалось подключиться к серверу. Убедитесь, что backend запущен на порту 5000.');
+  }
   const text = await res.text();
   let data = null;
   try {

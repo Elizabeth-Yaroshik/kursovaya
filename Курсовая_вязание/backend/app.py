@@ -5,6 +5,7 @@ from functools import wraps
 from pathlib import Path
 
 import jwt
+print("jwt location:", jwt.__file__)
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -28,7 +29,7 @@ def _require_json_object():
 
 
 def make_token(user_id):
-    payload = {"sub": user_id, "exp": datetime.now(timezone.utc) + timedelta(days=7)}
+    payload = {"sub": str(user_id), "exp": datetime.now(timezone.utc) + timedelta(days=7)}
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALG)
 
 
@@ -38,10 +39,15 @@ def login_required(fn):
         auth = request.headers.get("Authorization", "")
         if not auth.startswith("Bearer "):
             return jsonify({"error": "Missing bearer token"}), 401
-        token = auth[7:]
+        token = auth[7:].strip()
+        if not token:
+            return jsonify({"error": "Missing bearer token"}), 401
         try:
             payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALG])
-            request.user_id = int(payload["sub"])
+            sub = payload.get("sub")
+            if sub is None:
+                raise ValueError("Token is missing sub")
+            request.user_id = int(sub)
         except Exception:
             return jsonify({"error": "Invalid token"}), 401
         return fn(*args, **kwargs)
