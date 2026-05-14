@@ -1,11 +1,22 @@
-# Заполняет базу knitting.db тестовыми данными, если она пуста.
+# Заполняет базу knitting.db тестовыми данными только если она пуста.
 
-from database import (
-    add_yarn, add_sample, add_project
-)
+from database import add_yarn, add_sample, add_project, get_db_connection
+
+
+def _has_existing_data():
+    conn = get_db_connection()
+    try:
+        cursor = conn.execute('SELECT 1 FROM yarns LIMIT 1')
+        return cursor.fetchone() is not None
+    finally:
+        conn.close()
+
 
 def main():
     # Проверяем, есть ли уже данные
+    if _has_existing_data():
+        print('База уже содержит данные, пропускаем заполнение.')
+        return
 
     print("Добавляем пряжу...")
     # Пряжа 1
@@ -63,7 +74,7 @@ def main():
     )
 
     print("Добавляем проект...")
-    # Проект: связан с пряжей Merino Wool и образцом лицевой глади
+    # Проект: связан с пряжей Merino Wool и образцом платочной вязки
     pattern_data = {
         "description": "Простой шарф платочной вязкой",
         "dimensions": {"width_cm": 30, "length_cm": 180},
@@ -78,6 +89,7 @@ def main():
     )
 
     print("✅ База данных успешно заполнена демо-данными!")
+
 
 if __name__ == "__main__":
     main()
