@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Расчёт пряжи для вязания</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.0/fabric.min.js"></script>
+</head>
+<body>
+  <div id="loading-overlay" class="loading-overlay" hidden aria-busy="true">Загрузка…</div>
+  <div id="error-message" class="error-message" hidden role="alert"></div>
+
+  <header class="app-header">
+    <h1>Расчёт пряжи для вязания</h1>
+  </header>
+
+  <nav class="top-nav" aria-label="Разделы приложения">
+    <button type="button" class="top-nav-btn" data-page="my-projects">Мои проекты</button>
+    <button type="button" class="top-nav-btn active" data-page="constructor">Конструктор</button>
+    <button type="button" class="top-nav-btn" data-page="yarn-base">База пряжи</button>
+  </nav>
+
+  <section id="page-my-projects" class="page hidden" aria-label="Мои проекты">
+    <div class="library-section">
+      <h3 class="subheading">Библиотека PDF</h3>
+      <p class="hint">Загрузите выкройки и схемы. Нажмите на название, чтобы открыть файл.</p>
+
+      <form id="form-library-upload" class="library-upload">
+        <div class="field">
+          <label for="library-upload-name">Название</label>
+          <input type="text" id="library-upload-name" placeholder="Например, Пуловер реглан" required />
+        </div>
+        <div class="field">
+          <label for="library-upload-file">PDF-файл</label>
+          <input type="file" id="library-upload-file" accept="application/pdf,.pdf" required />
+        </div>
+        <button type="submit" id="btn-library-upload">Загрузить</button>
+      </form>
+
+      <p id="library-list-empty" class="hint">Пока нет загруженных файлов.</p>
+      <ul id="library-list" class="library-list" hidden></ul>
+    </div>
+  </section>
+
+  <section id="page-constructor" class="page active" aria-label="Конструктор">
+    <main class="app">
+      <div class="canvas-wrap">
+        <canvas id="c" width="800" height="600"></canvas>
+      </div>
+
+      <aside class="sidebar constructor-sidebar">
+        <section class="detail-panel" id="detail-panel" aria-labelledby="detail-panel-title">
+          <h3 class="subheading" id="detail-panel-title">Выбранная деталь</h3>
+          <p id="detail-hint" class="hint">Выберите одну фигуру на холсте.</p>
+          <div id="detail-fields" class="detail-fields" hidden>
+            <div id="detail-field-width-row" class="field">
+              <label for="detail-width-cm">Ширина, см</label>
+              <input type="number" id="detail-width-cm" step="any" min="0" />
+            </div>
+            <div id="detail-trapezoid-fields" class="detail-trapezoid-fields" hidden>
+              <div class="field">
+                <label for="detail-width-top-cm">Верхнее основание, см</label>
+                <input type="number" id="detail-width-top-cm" step="any" min="0" />
+              </div>
+              <div class="field">
+                <label for="detail-width-bottom-cm">Нижнее основание, см</label>
+                <input type="number" id="detail-width-bottom-cm" step="any" min="0" />
+              </div>
+            </div>
+            <div class="field">
+              <label for="detail-height-cm">Высота, см</label>
+              <input type="number" id="detail-height-cm" step="any" min="0" />
+            </div>
+            <p id="detail-gauge-hint" class="hint">Петли и ряды считаются по выбранному образцу на странице «База пряжи».</p>
+            <p id="detail-derived-text" class="detail-derived" aria-live="polite"></p>
+            <div class="detail-actions">
+              <button type="button" id="btn-detail-apply">Применить к выбранной</button>
+            </div>
+          </div>
+        </section>
+
+        <div class="actions">
+          <button type="button" id="btn-save">Сохранить</button>
+          <button type="button" id="btn-load">Загрузить</button>
+          <button type="button" id="btn-calc">Рассчитать</button>
+          <button type="button" id="btn-add-part">Добавить прямоугольник</button>
+          <button type="button" id="btn-add-circle">Добавить круг</button>
+          <button type="button" id="btn-add-triangle">Добавить треугольник</button>
+          <button type="button" id="btn-add-trapezoid">Добавить трапецию</button>
+          <button type="button" id="btn-delete-part">Удалить деталь</button>
+        </div>
+
+        <section class="calc-result" id="calc-result" aria-live="polite">
+          <h3 class="subheading">Результат расчёта</h3>
+          <p id="calc-result-empty" class="hint">Нажмите «Рассчитать» после выбора пряжи и образца на странице «База пряжи».</p>
+          <dl id="calc-result-values" class="calc-result-dl" hidden>
+            <div><dt>Пряжа, г</dt><dd id="calc-total-g">—</dd></div>
+            <div><dt>Пряжа, м</dt><dd id="calc-total-m">—</dd></div>
+            <div><dt>Мотков</dt><dd id="calc-skeins">—</dd></div>
+            <div><dt>Цена</dt><dd id="calc-price">—</dd></div>
+          </dl>
+        </section>
+      </aside>
+    </main>
+  </section>
+
+  <section id="page-yarn-base" class="page hidden" aria-label="База пряжи">
+    <div class="yarn-base">
+      <nav class="tabs" role="tablist">
+        <button type="button" class="tab active" data-tab="yarn" role="tab" aria-selected="true">Пряжа</button>
+        <button type="button" class="tab" data-tab="swatches" role="tab" aria-selected="false">Образцы</button>
+        <button type="button" class="tab" data-tab="projects" role="tab" aria-selected="false">Проекты</button>
+      </nav>
+
+      <div class="tab-panels">
+        <section class="tab-panel active" id="panel-yarn" role="tabpanel">
+          <div class="field">
+            <label for="select-yarn">Пряжа</label>
+            <select id="select-yarn"></select>
+          </div>
+          <div class="crud-btns">
+            <button type="button" id="btn-yarn-add">Добавить</button>
+            <button type="button" id="btn-yarn-edit">Изменить</button>
+            <button type="button" id="btn-yarn-del">Удалить</button>
+          </div>
+        </section>
+        <section class="tab-panel" id="panel-swatches" role="tabpanel" hidden>
+          <div class="field">
+            <label for="select-sample">Образец</label>
+            <select id="select-sample"></select>
+          </div>
+          <div class="crud-btns">
+            <button type="button" id="btn-sample-add">Добавить</button>
+            <button type="button" id="btn-sample-edit">Изменить</button>
+            <button type="button" id="btn-sample-del">Удалить</button>
+          </div>
+        </section>
+        <section class="tab-panel" id="panel-projects" role="tabpanel" hidden>
+          <div class="field">
+            <label for="input-project-name">Имя проекта</label>
+            <input type="text" id="input-project-name" placeholder="Название для сохранения" />
+          </div>
+          <div class="field">
+            <label for="select-project">Загрузить проект</label>
+            <select id="select-project">
+              <option value="">— выберите проект —</option>
+            </select>
+          </div>
+          <p class="hint">Пряжу и образец выберите во вкладках «Пряжа» и «Образцы» на этой странице.</p>
+          <div class="crud-btns">
+            <button type="button" id="btn-project-update">Обновить проект</button>
+            <button type="button" id="btn-project-delete">Удалить проект</button>
+          </div>
+        </section>
+      </div>
+    </div>
+  </section>
+
+  <dialog id="dialog-yarn" class="modal">
+    <form id="form-yarn">
+      <h3 id="dialog-yarn-title">Пряжа</h3>
+      <input type="hidden" id="yarn-edit-id" value="" />
+      <div class="field">
+        <label for="yarn-name">Название</label>
+        <input type="text" id="yarn-name" required />
+      </div>
+      <div class="field">
+        <label for="yarn-weight">Вес мотка, г</label>
+        <input type="number" id="yarn-weight" step="any" min="0" required />
+      </div>
+      <div class="field">
+        <label for="yarn-length">Длина мотка, м</label>
+        <input type="number" id="yarn-length" step="any" min="0" required />
+      </div>
+      <div class="field">
+        <label for="yarn-price">Цена мотка</label>
+        <input type="number" id="yarn-price" step="any" min="0" required />
+      </div>
+      <div class="field">
+        <label for="yarn-composition">Состав (необязательно)</label>
+        <input type="text" id="yarn-composition" />
+      </div>
+      <div class="modal-actions">
+        <button type="button" id="yarn-form-cancel">Отмена</button>
+        <button type="submit" id="yarn-form-save">Сохранить</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="dialog-yarn-delete" class="modal">
+    <p id="yarn-delete-msg"></p>
+    <div class="modal-actions">
+      <button type="button" id="yarn-delete-cancel">Отмена</button>
+      <button type="button" id="yarn-delete-confirm">Удалить</button>
+    </div>
+  </dialog>
+
+  <dialog id="dialog-sample" class="modal">
+    <form id="form-sample">
+      <h3 id="dialog-sample-title">Образец</h3>
+      <input type="hidden" id="sample-edit-id" value="" />
+      <div class="field">
+        <label for="sample-name">Название</label>
+        <input type="text" id="sample-name" required />
+      </div>
+      <div class="field">
+        <label for="sample-width">Ширина, см</label>
+        <input type="number" id="sample-width" step="any" min="0" required />
+      </div>
+      <div class="field">
+        <label for="sample-height">Высота, см</label>
+        <input type="number" id="sample-height" step="any" min="0" required />
+      </div>
+      <div class="field">
+        <label for="sample-stitches">Петли</label>
+        <input type="number" id="sample-stitches" step="1" min="0" required />
+      </div>
+      <div class="field">
+        <label for="sample-rows">Ряды</label>
+        <input type="number" id="sample-rows" step="1" min="0" required />
+      </div>
+      <div class="field">
+        <label for="sample-weight-g">Вес образца, г</label>
+        <input type="number" id="sample-weight-g" step="any" min="0" required />
+      </div>
+      <div class="modal-actions">
+        <button type="button" id="sample-form-cancel">Отмена</button>
+        <button type="submit" id="sample-form-save">Сохранить</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="dialog-sample-delete" class="modal">
+    <p id="sample-delete-msg"></p>
+    <div class="modal-actions">
+      <button type="button" id="sample-delete-cancel">Отмена</button>
+      <button type="button" id="sample-delete-confirm">Удалить</button>
+    </div>
+  </dialog>
+
+  <dialog id="dialog-library-pdf" class="modal modal-pdf">
+    <div class="modal-pdf-header">
+      <h3 id="library-pdf-title" class="subheading">Просмотр PDF</h3>
+      <button type="button" id="library-pdf-close" class="top-nav-btn">Закрыть</button>
+    </div>
+    <iframe id="library-pdf-frame" class="library-pdf-frame" title="Документ PDF"></iframe>
+  </dialog>
+
+  <script src="script.js"></script>
+</body>
+</html>
