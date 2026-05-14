@@ -962,6 +962,11 @@ const PAGE_SECTION_IDS = {
 };
 
 function showPage(pageKey) {
+  const isAuthPage = pageKey === 'login' || pageKey === 'register';
+  if (!authToken && !isAuthPage) {
+    pageKey = 'login';
+  }
+
   Object.entries(PAGE_SECTION_IDS).forEach(([key, sectionId]) => {
     const el = document.getElementById(sectionId);
     if (!el) return;
@@ -1402,7 +1407,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (goLogin) goLogin.addEventListener('click', () => showPage('login'));
   document.getElementById('btn-logout')?.addEventListener('click', () => { authToken=''; currentUser=null; localStorage.removeItem('token'); showPage('login'); });
   document.getElementById('form-login')?.addEventListener('submit', async (e) => { e.preventDefault(); try { const data = await apiFetchJson('/api/login',{ method:'POST', body: JSON.stringify({ username: document.getElementById('login-username').value.trim(), password: document.getElementById('login-password').value })}); authToken=data.token; localStorage.setItem('token',authToken); const me=await apiGet('/api/me'); currentUser=me; document.getElementById('main-welcome').textContent=`Добро пожаловать, ${me.username}!`; showPage('main'); await loadYarns({skipOverlay:true}); await loadSamples({skipOverlay:true}); await loadProjectList({skipOverlay:true}); } catch(err){ showUserError(err.message);} });
-  document.getElementById('form-register')?.addEventListener('submit', async (e) => { e.preventDefault(); try { const data = await apiFetchJson('/api/register',{ method:'POST', body: JSON.stringify({ username: document.getElementById('register-username').value.trim(), password: document.getElementById('register-password').value })}); authToken=data.token; localStorage.setItem('token',authToken); const me=await apiGet('/api/me'); currentUser=me; document.getElementById('main-welcome').textContent=`Добро пожаловать, ${me.username}!`; showPage('main'); } catch(err){ showUserError(err.message);} });
+  document.getElementById('form-register')?.addEventListener('submit', async (e) => { e.preventDefault(); try { const data = await apiFetchJson('/api/register',{ method:'POST', body: JSON.stringify({ username: document.getElementById('register-username').value.trim(), password: document.getElementById('register-password').value })}); authToken=data.token; localStorage.setItem('token',authToken); const me=await apiGet('/api/me'); currentUser=me; document.getElementById('main-welcome').textContent=`Добро пожаловать, ${me.username}!`; showPage('main'); await loadYarns({skipOverlay:true}); await loadSamples({skipOverlay:true}); await loadProjectList({skipOverlay:true}); } catch(err){ showUserError(err.message);} });
   document.querySelectorAll('.main-nav-btn').forEach((b)=>b.addEventListener('click', ()=>showPage(b.dataset.page)));
 
   if (authToken) {
