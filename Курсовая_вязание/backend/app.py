@@ -19,13 +19,20 @@ CORS(app)
 def _log_api_exc(route: str, exc: BaseException) -> None:
     app.logger.exception('%s: %s', route, exc)
 
+
+def _require_json_object():
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return None, (jsonify({'error': 'Request body must be a valid JSON object'}), 400)
+    return data, None
+
 @app.route('/')
 def hello():
     return "Сервер калькулятора пряжи работает! Используйте API /api/..."
 
 
 # ========================
-# Эндпоинты для пряжи (yarns)
+# Эндпоинт для пряжи (yarns)
 # ========================
 
 @app.route('/api/yarns', methods=['GET'])
@@ -41,7 +48,9 @@ def get_yarns():
 @app.route('/api/yarns', methods=['POST'])
 def create_yarn():
     try:
-        data = request.get_json()
+        data, error = _require_json_object()
+        if error:
+            return error
         required_fields = ['name', 'weight_per_skein_g', 'length_per_skein_m', 'price_per_skein']
         for field in required_fields:
             if field not in data:
@@ -63,7 +72,9 @@ def create_yarn():
 @app.route('/api/yarns/<int:yarn_id>', methods=['PUT'])
 def update_yarn(yarn_id):
     try:
-        data = request.get_json()
+        data, error = _require_json_object()
+        if error:
+            return error
         updated = database.update_yarn(
             yarn_id=yarn_id,
             name=data.get('name'),
@@ -93,7 +104,7 @@ def delete_yarn(yarn_id):
 
 
 # ========================
-# Эндпоинты для образцов (samples)
+# Эндпоинт для образцов (samples)
 # ========================
 
 @app.route('/api/samples', methods=['GET'])
@@ -109,7 +120,9 @@ def get_samples():
 @app.route('/api/samples', methods=['POST'])
 def create_sample():
     try:
-        data = request.get_json()
+        data, error = _require_json_object()
+        if error:
+            return error
         required_fields = ['name', 'width_cm', 'height_cm', 'stitches', 'rows', 'weight_g']
         for field in required_fields:
             if field not in data:
@@ -132,7 +145,9 @@ def create_sample():
 @app.route('/api/samples/<int:sample_id>', methods=['PUT'])
 def update_sample(sample_id):
     try:
-        data = request.get_json()
+        data, error = _require_json_object()
+        if error:
+            return error
         updated = database.update_sample(
             sample_id=sample_id,
             name=data.get('name'),
@@ -163,7 +178,7 @@ def delete_sample(sample_id):
 
 
 # ========================
-# Эндпоинты для проектов (projects)
+# Эндпоинт для проектов (projects)
 # ========================
 
 @app.route('/api/projects', methods=['GET'])
@@ -201,7 +216,9 @@ def create_project():
     }
     """
     try:
-        data = request.get_json()
+        data, error = _require_json_object()
+        if error:
+            return error
         if 'name' not in data or 'pattern_json' not in data:
             return jsonify({'error': 'Missing required fields: name, pattern_json'}), 400
 
@@ -223,7 +240,9 @@ def update_project(project_id):
     Можно передать любые из полей: name, pattern_json, yarn_id, sample_id.
     """
     try:
-        data = request.get_json()
+        data, error = _require_json_object()
+        if error:
+            return error
         updated = database.update_project(
             project_id=project_id,
             name=data.get('name'),
