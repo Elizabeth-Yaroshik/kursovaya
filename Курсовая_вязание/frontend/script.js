@@ -8,6 +8,13 @@ let currentProjectId = null;
 
 let yarnsCache = [];
 let samplesCache = [];
+let authToken = localStorage.getItem('token') || '';
+let currentUser = null;
+
+function authHeaders(extra = {}) {
+  return authToken ? { Authorization: `Bearer ${authToken}`, ...extra } : { ...extra };
+}
+
 
 /** 1 пиксель на холсте ≈ 0,1 см при задании размеров детали */
 const CM_PER_PX = 0.1;
@@ -47,7 +54,7 @@ function showUserError(msg) {
 
 async function apiGet(path) {
   try {
-    const res = await fetch(`${API_BASE}${path}`);
+    const res = await fetch(`${API_BASE}${path}`, { headers: authHeaders() });
     const text = await res.text();
     let data = null;
     if (text.length === 0) {
@@ -77,7 +84,7 @@ async function apiFetchJson(path, options = {}) {
     ...options,
     headers: {
       'Content-Type': 'application/json',
-      ...(options.headers || {}),
+      ...authHeaders(options.headers || {}),
     },
   });
   const text = await res.text();
@@ -98,6 +105,7 @@ async function apiPostMultipart(path, formData) {
   const res = await fetch(`${API_BASE}${path}`, {
     method: 'POST',
     body: formData,
+    headers: authHeaders(),
   });
   const text = await res.text();
   let data = null;
@@ -945,6 +953,9 @@ async function loadProjectById(projectId) {
 }
 
 const PAGE_SECTION_IDS = {
+  login: 'page-login',
+  register: 'page-register',
+  main: 'page-main',
   'my-projects': 'page-my-projects',
   constructor: 'page-constructor',
   'yarn-base': 'page-yarn-base',
@@ -961,6 +972,8 @@ function showPage(pageKey) {
   document.querySelectorAll('.top-nav-btn').forEach((btn) => {
     btn.classList.toggle('active', btn.dataset.page === pageKey);
   });
+  const topNav = document.getElementById('top-nav');
+  if (topNav) topNav.hidden = !authToken || ['login','register','main'].includes(pageKey);
   if (pageKey === 'constructor' && appCanvas) {
     requestAnimationFrame(() => {
       appCanvas.setDimensions({ width: 800, height: 600 });
@@ -1383,11 +1396,26 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
+  const goRegister = document.getElementById('go-register');
+  const goLogin = document.getElementById('go-login');
+  if (goRegister) goRegister.addEventListener('click', () => showPage('register'));
+  if (goLogin) goLogin.addEventListener('click', () => showPage('login'));
+  document.getElementById('btn-logout')?.addEventListener('click', () => { authToken=''; currentUser=null; localStorage.removeItem('token'); showPage('login'); });
+  document.getElementById('form-login')?.addEventListener('submit', async (e) => { e.preventDefault(); try { const data = await apiFetchJson('/api/login',{ method:'POST', body: JSON.stringify({ username: document.getElementById('login-username').value.trim(), password: document.getElementById('login-password').value })}); authToken=data.token; localStorage.setItem('token',authToken); const me=await apiGet('/api/me'); currentUser=me; document.getElementById('main-welcome').textContent=`Добро пожаловать, ${me.username}!`; showPage('main'); await loadYarns({skipOverlay:true}); await loadSamples({skipOverlay:true}); await loadProjectList({skipOverlay:true}); } catch(err){ showUserError(err.message);} });
+  document.getElementById('form-register')?.addEventListener('submit', async (e) => { e.preventDefault(); try { const data = await apiFetchJson('/api/register',{ method:'POST', body: JSON.stringify({ username: document.getElementById('register-username').value.trim(), password: document.getElementById('register-password').value })}); authToken=data.token; localStorage.setItem('token',authToken); const me=await apiGet('/api/me'); currentUser=me; document.getElementById('main-welcome').textContent=`Добро пожаловать, ${me.username}!`; showPage('main'); } catch(err){ showUserError(err.message);} });
+  document.querySelectorAll('.main-nav-btn').forEach((b)=>b.addEventListener('click', ()=>showPage(b.dataset.page)));
+
+  if (authToken) {
+    try { const me = await apiGet('/api/me'); currentUser = me; document.getElementById('main-welcome').textContent=`Добро пожаловать, ${me.username}!`; showPage('main'); } catch { authToken=''; localStorage.removeItem('token'); showPage('login'); }
+  } else { showPage('login'); }
+
   showLoading();
   try {
-    await loadYarns({ skipOverlay: true });
+    if (authToken) {
+      await loadYarns({ skipOverlay: true });
     await loadSamples({ skipOverlay: true });
-    await loadProjectList({ skipOverlay: true });
+      await loadProjectList({ skipOverlay: true });
+    }
   } catch (err) {
     const msg = `Не удалось загрузить данные с сервера: ${err.message}`;
     showUserError(msg);

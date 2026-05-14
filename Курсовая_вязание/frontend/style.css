@@ -345,3 +345,7 @@ body {
 .detail-actions {
   margin-top: 0.5rem;
 }
+.auth-card{max-width:360px;display:flex;flex-direction:column;gap:.6rem}
+.auth-card input,.auth-card button{padding:.6rem}
+.main-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem;max-width:800px}
+.main-nav-btn{padding:1.2rem;font-size:1.1rem;font-weight:700}
