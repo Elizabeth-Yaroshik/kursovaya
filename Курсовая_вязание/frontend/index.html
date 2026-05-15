@@ -20,7 +20,6 @@
     <button type="button" class="top-nav-btn" data-page="community-projects">Проекты сообщества</button>
     <button type="button" class="top-nav-btn active" data-page="constructor">Конструктор</button>
     <button type="button" class="top-nav-btn" data-page="yarn-base">База пряжи</button>
-    <button type="button" class="top-nav-btn" id="btn-home">На главную</button>
     <button type="button" id="btn-logout" class="top-nav-btn">Выйти</button>
   </nav>
 
@@ -69,7 +68,28 @@
 
   <section id="page-my-projects" class="page hidden" aria-label="Мои проекты">
     <div class="library-section">
-      <h3 class="subheading">Библиотека PDF</h3>
+
+      <div class="projects-section">
+        <h3 class="subheading">Проекты</h3>
+        <p class="hint">Управление сохранёнными проектами.</p>
+<section class="projects-panel" id="projects-panel">
+          <div class="field">
+            <label for="input-project-name">Имя проекта</label>
+            <input type="text" id="input-project-name" placeholder="Название для сохранения" />
+          </div>
+          <div class="field">
+            <label for="select-project">Загрузить проект</label>
+            <select id="select-project">
+              <option value="">— выберите проект —</option>
+            </select>
+          </div>
+          <div class="field"><label><input type="checkbox" id="project-is-public" /> Показывать проект другим пользователям</label></div>
+          <div class="crud-btns">
+            <button type="button" id="btn-project-update">Обновить проект</button>
+            <button type="button" id="btn-project-delete">Удалить проект</button>
+          </div>
+        </section>
+        <h3 class="subheading">Библиотека PDF</h3>
       <p class="hint">Загрузите выкройки и схемы. Нажмите на название, чтобы открыть файл.</p>
 
       <form id="form-library-upload" class="library-upload">
@@ -87,27 +107,6 @@
       <p id="library-list-empty" class="hint">Пока нет загруженных файлов.</p>
       <ul id="library-list" class="library-list" hidden></ul>
 
-      <div class="projects-section">
-        <h3 class="subheading">Проекты</h3>
-        <p class="hint">Управление сохранёнными проектами из базы пряжи.</p>
-<section class="projects-panel" id="projects-panel">
-          <div class="field">
-            <label for="input-project-name">Имя проекта</label>
-            <input type="text" id="input-project-name" placeholder="Название для сохранения" />
-          </div>
-          <div class="field">
-            <label for="select-project">Загрузить проект</label>
-            <select id="select-project">
-              <option value="">— выберите проект —</option>
-            </select>
-          </div>
-          <p class="hint">Пряжу и образец выберите во вкладках «Пряжа» и «Образцы» на этой странице.</p>
-          <div class="field"><label><input type="checkbox" id="project-is-public" /> Показывать проект другим пользователям</label></div>
-          <div class="crud-btns">
-            <button type="button" id="btn-project-update">Обновить проект</button>
-            <button type="button" id="btn-project-delete">Удалить проект</button>
-          </div>
-        </section>
       </div>
     </div>
   </section>
@@ -163,7 +162,6 @@
 
         <div class="actions">
           <button type="button" id="btn-save">Сохранить</button>
-          <button type="button" id="btn-load">Загрузить</button>
           <button type="button" id="btn-calc">Рассчитать</button>
           <button type="button" id="btn-export-pdf">Скачать отчёт (PDF)</button>
           <button type="button" id="btn-add-part">Добавить прямоугольник</button>

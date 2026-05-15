@@ -1779,19 +1779,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
 
-  document.getElementById('btn-load').addEventListener('click', async () => {
-    const id = document.getElementById('select-project').value;
-    if (!id) {
-      alert('Выберите проект в списке на странице «Мои проекты».');
-      return;
-    }
-    try {
-      await loadProjectById(id);
-    } catch (err) {
-      alert(err.message);
-    }
-  });
-
   const formLib = document.getElementById('form-library-upload');
   if (formLib) {
     formLib.addEventListener('submit', async (e) => {
