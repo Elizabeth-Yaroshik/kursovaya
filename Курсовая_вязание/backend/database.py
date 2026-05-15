@@ -61,6 +61,16 @@ def init_db():
         FOREIGN KEY(yarn_id) REFERENCES yarns(id) ON DELETE SET NULL,
         FOREIGN KEY(sample_id) REFERENCES samples(id) ON DELETE SET NULL
     )''')
+    conn.execute('''CREATE TABLE IF NOT EXISTS project_reviews (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        project_id INTEGER NOT NULL,
+        user_id INTEGER NOT NULL,
+        rating INTEGER,
+        comment TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE,
+        FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+    )''')
     conn.execute('''CREATE TABLE IF NOT EXISTS library (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id INTEGER,
@@ -72,6 +82,7 @@ def init_db():
     _ensure_column(conn, 'yarns', 'user_id', 'user_id INTEGER')
     _ensure_column(conn, 'samples', 'user_id', 'user_id INTEGER')
     _ensure_column(conn, 'projects', 'user_id', 'user_id INTEGER')
+    _ensure_column(conn, 'projects', 'is_public', 'is_public INTEGER NOT NULL DEFAULT 0')
     _ensure_column(conn, 'library', 'user_id', 'user_id INTEGER')
     conn.commit()
     conn.close()
@@ -137,10 +148,10 @@ def delete_sample(user_id, sample_id):
     conn=get_db_connection(); cur=conn.execute('DELETE FROM samples WHERE id=? AND user_id=?',(sample_id,user_id)); conn.commit(); ok=cur.rowcount>0; conn.close(); return ok
 
 def add_project(user_id, name, pattern_json, yarn_id=None, sample_id=None):
-    conn=get_db_connection(); cur=conn.execute('INSERT INTO projects (user_id,name,yarn_id,sample_id,pattern_json) VALUES (?,?,?,?,?)',(user_id,name,yarn_id,sample_id,json.dumps(pattern_json,ensure_ascii=False))); conn.commit(); conn.close(); return cur.lastrowid
+    conn=get_db_connection(); cur=conn.execute('INSERT INTO projects (user_id,name,yarn_id,sample_id,pattern_json,is_public) VALUES (?,?,?,?,?,0)',(user_id,name,yarn_id,sample_id,json.dumps(pattern_json,ensure_ascii=False))); conn.commit(); conn.close(); return cur.lastrowid
 
 def get_all_projects(user_id):
-    conn=get_db_connection(); rows=conn.execute('SELECT id,name,created_at FROM projects WHERE user_id=? ORDER BY created_at DESC',(user_id,)).fetchall(); conn.close(); return [dict(r) for r in rows]
+    conn=get_db_connection(); rows=conn.execute('SELECT id,name,is_public,created_at FROM projects WHERE user_id=? ORDER BY created_at DESC',(user_id,)).fetchall(); conn.close(); return [dict(r) for r in rows]
 
 def get_project_by_id(user_id, project_id):
     conn=get_db_connection(); row=conn.execute('SELECT p.*, y.name as yarn_name, s.name as sample_name FROM projects p LEFT JOIN yarns y ON p.yarn_id=y.id AND y.user_id=p.user_id LEFT JOIN samples s ON p.sample_id=s.id AND s.user_id=p.user_id WHERE p.id=? AND p.user_id=?',(project_id,user_id)).fetchone(); conn.close();
@@ -153,12 +164,48 @@ def update_project(user_id, project_id, **fields):
     if fields.get('pattern_json') is not None: sets.append('pattern_json=?'); vals.append(json.dumps(fields['pattern_json'], ensure_ascii=False))
     if 'yarn_id' in fields and fields.get('yarn_id') is not None: sets.append('yarn_id=?'); vals.append(fields['yarn_id'])
     if 'sample_id' in fields and fields.get('sample_id') is not None: sets.append('sample_id=?'); vals.append(fields['sample_id'])
+    if 'is_public' in fields and fields.get('is_public') is not None: sets.append('is_public=?'); vals.append(1 if fields['is_public'] else 0)
     if not sets: return True
     vals += [project_id,user_id]
     conn=get_db_connection(); cur=conn.execute(f"UPDATE projects SET {', '.join(sets)} WHERE id=? AND user_id=?", vals); conn.commit(); ok=cur.rowcount>0; conn.close(); return ok
 
 def delete_project(user_id, project_id):
     conn=get_db_connection(); cur=conn.execute('DELETE FROM projects WHERE id=? AND user_id=?',(project_id,user_id)); conn.commit(); ok=cur.rowcount>0; conn.close(); return ok
+
+def get_public_projects(sort='new', min_rating=None):
+    order_clause = {
+        'alpha_asc': 'p.name COLLATE NOCASE ASC',
+        'alpha_desc': 'p.name COLLATE NOCASE DESC',
+        'rating_desc': 'avg_rating DESC, reviews_count DESC, p.created_at DESC',
+        'rating_asc': 'avg_rating ASC, p.created_at DESC',
+        'new': 'p.created_at DESC'
+    }.get(sort, 'p.created_at DESC')
+    params = []
+    having = ''
+    if min_rating is not None:
+        having = ' HAVING avg_rating >= ? '
+        params.append(min_rating)
+    conn=get_db_connection()
+    rows=conn.execute(f'''SELECT p.id, p.name, p.created_at, u.username as owner_username,
+        ROUND(AVG(r.rating), 2) as avg_rating,
+        COUNT(r.id) as reviews_count
+        FROM projects p
+        JOIN users u ON u.id=p.user_id
+        LEFT JOIN project_reviews r ON r.project_id=p.id
+        WHERE p.is_public=1
+        GROUP BY p.id
+        {having}
+        ORDER BY {order_clause}''', params).fetchall()
+    conn.close(); return [dict(r) for r in rows]
+
+def get_project_reviews(project_id):
+    conn=get_db_connection(); rows=conn.execute('''SELECT r.id, r.rating, r.comment, r.created_at, u.username
+        FROM project_reviews r JOIN users u ON u.id=r.user_id WHERE r.project_id=? ORDER BY r.created_at DESC''',(project_id,)).fetchall(); conn.close(); return [dict(r) for r in rows]
+
+def add_project_review(user_id, project_id, rating=None, comment=None):
+    conn=get_db_connection()
+    cur=conn.execute('INSERT INTO project_reviews (project_id,user_id,rating,comment) VALUES (?,?,?,?)',(project_id,user_id,rating,comment))
+    conn.commit(); conn.close(); return cur.lastrowid
 
 def add_library_item(user_id, name, stored_filename):
     conn=get_db_connection(); cur=conn.execute('INSERT INTO library (user_id,name,stored_filename) VALUES (?,?,?)',(user_id,name,stored_filename)); conn.commit(); conn.close(); return cur.lastrowid
