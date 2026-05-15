@@ -186,7 +186,7 @@ def get_public_projects(sort='new', min_rating=None):
         having = ' HAVING avg_rating >= ? '
         params.append(min_rating)
     conn=get_db_connection()
-    rows=conn.execute(f'''SELECT p.id, p.name, p.created_at, u.username as owner_username,
+    rows=conn.execute(f'''SELECT p.id, p.name, p.created_at, p.pattern_json, u.username as owner_username,
         ROUND(AVG(r.rating), 2) as avg_rating,
         COUNT(r.id) as reviews_count
         FROM projects p
@@ -196,7 +196,16 @@ def get_public_projects(sort='new', min_rating=None):
         GROUP BY p.id
         {having}
         ORDER BY {order_clause}''', params).fetchall()
-    conn.close(); return [dict(r) for r in rows]
+    conn.close()
+    result = []
+    for row in rows:
+        item = dict(row)
+        try:
+            item['pattern_json'] = json.loads(item['pattern_json']) if item.get('pattern_json') else None
+        except Exception:
+            item['pattern_json'] = None
+        result.append(item)
+    return result
 
 def get_project_reviews(project_id):
     conn=get_db_connection(); rows=conn.execute('''SELECT r.id, r.rating, r.comment, r.created_at, u.username
