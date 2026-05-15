@@ -101,6 +101,10 @@
               <label for="detail-height-cm">Высота, см</label>
               <input type="number" id="detail-height-cm" step="any" min="0" />
             </div>
+            <div class="field">
+              <label for="detail-fill-color">Цвет детали</label>
+              <input type="color" id="detail-fill-color" value="#6495ed" />
+            </div>
             <p id="detail-gauge-hint" class="hint">Петли и ряды считаются по выбранному образцу на странице «База пряжи».</p>
             <p id="detail-derived-text" class="detail-derived" aria-live="polite"></p>
             <div class="detail-actions">
@@ -119,6 +123,7 @@
           <button type="button" id="btn-add-triangle">Добавить треугольник</button>
           <button type="button" id="btn-add-trapezoid">Добавить трапецию</button>
           <button type="button" id="btn-delete-part">Удалить деталь</button>
+          <button type="button" id="btn-duplicate-part">Дублировать деталь</button>
         </div>
 
         <section class="calc-result" id="calc-result" aria-live="polite">
@@ -130,6 +135,10 @@
             <div><dt>Мотков</dt><dd id="calc-skeins">—</dd></div>
             <div><dt>Цена</dt><dd id="calc-price">—</dd></div>
           </dl>
+        </section>
+        <section class="total-area">
+          <h3 class="subheading">Общая площадь деталей</h3>
+          <p id="total-area-value" class="total-area-value">0 см²</p>
         </section>
       </aside>
     </main>
