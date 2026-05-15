@@ -317,29 +317,54 @@ def add_project_review(project_id):
 def calculate():
     data, err = _require_json_object()
     if err: return err
-    sample_id, err = validate_positive_number(data.get('sample_id'), 'sample_id', as_int=True)
-    if err: return err
-    yarn_id, err = validate_positive_number(data.get('yarn_id'), 'yarn_id', as_int=True)
-    if err: return err
-    sample = database.get_sample_by_id(request.user_id, sample_id)
-    yarn = database.get_yarn_by_id(request.user_id, yarn_id)
-    if not sample or not yarn: return jsonify({'error':'Sample or yarn not found'}),404
+    default_sample = None
+    default_yarn = None
+    if data.get('sample_id') is not None:
+      sample_id, err = validate_positive_number(data.get('sample_id'), 'sample_id', as_int=True)
+      if err: return err
+      default_sample = database.get_sample_by_id(request.user_id, sample_id)
+      if not default_sample: return jsonify({'error':'Sample not found'}),404
+    if data.get('yarn_id') is not None:
+      yarn_id, err = validate_positive_number(data.get('yarn_id'), 'yarn_id', as_int=True)
+      if err: return err
+      default_yarn = database.get_yarn_by_id(request.user_id, yarn_id)
+      if not default_yarn: return jsonify({'error':'Yarn not found'}),404
     objects=(data.get('pattern_json') or {}).get('objects',[])
     if not isinstance(objects, list):
         objects = []
-    total_area=0.0
+    total_g=0.0
+    total_m=0.0
+    total_price=0.0
+    total_skeins=0
+    missing_details = 0
     for obj in objects:
         c=obj.get('customData') or {}; st=c.get('shapeType','rectangle')
-        if st=='trapezoid': total_area += ((float(c.get('width_top_cm',0))+float(c.get('width_bottom_cm',0)))/2)*float(c.get('height_cm',0))
-        elif st=='circle': r=float(c.get('width_cm',0))/2; total_area += math.pi*r*r
-        elif st=='ellipse': total_area += math.pi*(float(c.get('width_cm',0))/2)*(float(c.get('height_cm',0))/2)
-        elif st=='triangle': total_area += float(c.get('width_cm',0))*float(c.get('height_cm',0))/2
-        else: total_area += float(c.get('width_cm',0))*float(c.get('height_cm',0))
-    weight_per_cm2=float(sample['weight_g'])/(float(sample['width_cm'])*float(sample['height_cm']))
-    total_g=total_area*weight_per_cm2
-    total_m=total_g*float(yarn['length_per_skein_m'])/float(yarn['weight_per_skein_g'])
-    skeins=math.ceil(total_g/float(yarn['weight_per_skein_g']))
-    return jsonify({'totalYarnG':round(total_g,2),'totalYarnM':round(total_m,2),'skeinsNeeded':skeins,'totalPrice':round(skeins*float(yarn['price_per_skein']),2)})
+        detail_sample = default_sample
+        detail_yarn = default_yarn
+        if c.get('sample_id') is not None:
+            detail_sample = database.get_sample_by_id(request.user_id, int(c.get('sample_id')))
+        if c.get('yarn_id') is not None:
+            detail_yarn = database.get_yarn_by_id(request.user_id, int(c.get('yarn_id')))
+        if not detail_sample or not detail_yarn:
+            missing_details += 1
+            continue
+        area = 0.0
+        if st=='trapezoid': area += ((float(c.get('width_top_cm',0))+float(c.get('width_bottom_cm',0)))/2)*float(c.get('height_cm',0))
+        elif st=='circle': r=float(c.get('width_cm',0))/2; area += math.pi*r*r
+        elif st=='ellipse': area += math.pi*(float(c.get('width_cm',0))/2)*(float(c.get('height_cm',0))/2)
+        elif st=='triangle': area += float(c.get('width_cm',0))*float(c.get('height_cm',0))/2
+        else: area += float(c.get('width_cm',0))*float(c.get('height_cm',0))
+        weight_per_cm2=float(detail_sample['weight_g'])/(float(detail_sample['width_cm'])*float(detail_sample['height_cm']))
+        detail_g = area * weight_per_cm2
+        detail_m = detail_g * float(detail_yarn['length_per_skein_m']) / float(detail_yarn['weight_per_skein_g'])
+        skeins = math.ceil(detail_g / float(detail_yarn['weight_per_skein_g']))
+        total_g += detail_g
+        total_m += detail_m
+        total_skeins += skeins
+        total_price += skeins * float(detail_yarn['price_per_skein'])
+    if missing_details > 0:
+        return jsonify({'error': f'Для {missing_details} деталей не выбраны пряжа/образец (ни локально, ни глобально).'}),400
+    return jsonify({'totalYarnG':round(total_g,2),'totalYarnM':round(total_m,2),'skeinsNeeded':total_skeins,'totalPrice':round(total_price,2)})
 
 @app.route('/api/library/upload', methods=['POST'])
 @login_required

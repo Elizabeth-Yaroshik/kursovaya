@@ -122,7 +122,15 @@
               <label for="detail-fill-color">Цвет детали</label>
               <input type="color" id="detail-fill-color" value="#6495ed" />
             </div>
-            <p id="detail-gauge-hint" class="hint">Петли и ряды считаются по выбранному образцу на странице «База пряжи».</p>
+            <div class="field">
+              <label for="detail-sample-id">Образец (для этой детали)</label>
+              <select id="detail-sample-id"></select>
+            </div>
+            <div class="field">
+              <label for="detail-yarn-id">Пряжа (для этой детали)</label>
+              <select id="detail-yarn-id"></select>
+            </div>
+            <p id="detail-gauge-hint" class="hint">Для каждой детали можно выбрать свой образец и пряжу прямо в конструкторе.</p>
             <p id="detail-derived-text" class="detail-derived" aria-live="polite"></p>
             <div class="detail-actions">
               <button type="button" id="btn-detail-apply">Применить к выбранной</button>
