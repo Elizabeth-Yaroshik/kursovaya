@@ -27,6 +27,20 @@ def _require_json_object():
         return None, (jsonify({"error": "Request body must be a valid JSON object"}), 400)
     return data, None
 
+def validate_positive_number(value, field_name, allow_zero=False, as_int=False):
+    caster = int if as_int else float
+    try:
+        num = caster(value)
+    except (TypeError, ValueError):
+        return None, (jsonify({"error": f"{field_name} must be a number"}), 400)
+    if allow_zero:
+        if num < 0:
+            return None, (jsonify({"error": f"{field_name} must be >= 0"}), 400)
+    else:
+        if num <= 0:
+            return None, (jsonify({"error": f"{field_name} must be > 0"}), 400)
+    return num, None
+
 
 def make_token(user_id):
     payload = {"sub": str(user_id), "exp": datetime.now(timezone.utc) + timedelta(days=7)}
@@ -93,7 +107,19 @@ def get_yarns(): return jsonify(database.get_all_yarns(request.user_id)), 200
 def create_yarn():
     data, error = _require_json_object();
     if error: return error
-    new_id = database.add_yarn(request.user_id, data['name'], float(data['weight_per_skein_g']), float(data['length_per_skein_m']), float(data['price_per_skein']), data.get('composition'))
+    name = (data.get('name') or '').strip()
+    if not name:
+        return jsonify({"error": "name must not be empty"}), 400
+    weight, err = validate_positive_number(data.get('weight_per_skein_g'), 'weight_per_skein_g')
+    if err: return err
+    length, err = validate_positive_number(data.get('length_per_skein_m'), 'length_per_skein_m')
+    if err: return err
+    price, err = validate_positive_number(data.get('price_per_skein'), 'price_per_skein', allow_zero=True)
+    if err: return err
+    composition = data.get('composition')
+    if composition is not None and not isinstance(composition, str):
+        return jsonify({"error": "composition must be a string or null"}), 400
+    new_id = database.add_yarn(request.user_id, name, weight, length, price, composition)
     return jsonify({'id': new_id}), 201
 
 @app.route('/api/yarns/<int:yarn_id>', methods=['PUT'])
@@ -101,7 +127,29 @@ def create_yarn():
 def update_yarn(yarn_id):
     data, error = _require_json_object();
     if error: return error
-    ok = database.update_yarn(request.user_id, yarn_id, **data)
+    payload = {}
+    if 'name' in data:
+        name = (data.get('name') or '').strip()
+        if not name:
+            return jsonify({"error": "name must not be empty"}), 400
+        payload['name'] = name
+    if 'weight_per_skein_g' in data:
+        v, err = validate_positive_number(data.get('weight_per_skein_g'), 'weight_per_skein_g')
+        if err: return err
+        payload['weight_per_skein_g'] = v
+    if 'length_per_skein_m' in data:
+        v, err = validate_positive_number(data.get('length_per_skein_m'), 'length_per_skein_m')
+        if err: return err
+        payload['length_per_skein_m'] = v
+    if 'price_per_skein' in data:
+        v, err = validate_positive_number(data.get('price_per_skein'), 'price_per_skein', allow_zero=True)
+        if err: return err
+        payload['price_per_skein'] = v
+    if 'composition' in data:
+        if data.get('composition') is not None and not isinstance(data.get('composition'), str):
+            return jsonify({"error": "composition must be a string or null"}), 400
+        payload['composition'] = data.get('composition')
+    ok = database.update_yarn(request.user_id, yarn_id, **payload)
     return (jsonify({'message':'ok'}),200) if ok else (jsonify({'error':'Yarn not found'}),404)
 
 @app.route('/api/yarns/<int:yarn_id>', methods=['DELETE'])
@@ -119,7 +167,20 @@ def get_samples(): return jsonify(database.get_all_samples(request.user_id)), 20
 def create_sample():
     data, error = _require_json_object();
     if error: return error
-    new_id = database.add_sample(request.user_id, data['name'], float(data['width_cm']), float(data['height_cm']), int(data['stitches']), int(data['rows']), float(data['weight_g']))
+    name = (data.get('name') or '').strip()
+    if not name:
+        return jsonify({"error": "name must not be empty"}), 400
+    width, err = validate_positive_number(data.get('width_cm'), 'width_cm')
+    if err: return err
+    height, err = validate_positive_number(data.get('height_cm'), 'height_cm')
+    if err: return err
+    stitches, err = validate_positive_number(data.get('stitches'), 'stitches', as_int=True)
+    if err: return err
+    rows, err = validate_positive_number(data.get('rows'), 'rows', as_int=True)
+    if err: return err
+    weight, err = validate_positive_number(data.get('weight_g'), 'weight_g')
+    if err: return err
+    new_id = database.add_sample(request.user_id, name, width, height, stitches, rows, weight)
     return jsonify({'id': new_id}), 201
 
 @app.route('/api/samples/<int:sample_id>', methods=['PUT'])
@@ -127,7 +188,22 @@ def create_sample():
 def update_sample(sample_id):
     data, error = _require_json_object();
     if error: return error
-    ok = database.update_sample(request.user_id, sample_id, **data)
+    payload = {}
+    for field in ('name', 'width_cm', 'height_cm', 'stitches', 'rows', 'weight_g'):
+        if field not in data:
+            continue
+        if field == 'name':
+            v = (data.get(field) or '').strip()
+            if not v:
+                return jsonify({"error": "name must not be empty"}), 400
+        elif field in ('stitches', 'rows'):
+            v, err = validate_positive_number(data.get(field), field, as_int=True)
+            if err: return err
+        else:
+            v, err = validate_positive_number(data.get(field), field)
+            if err: return err
+        payload[field] = v
+    ok = database.update_sample(request.user_id, sample_id, **payload)
     return (jsonify({'message':'ok'}),200) if ok else (jsonify({'error':'Sample not found'}),404)
 
 @app.route('/api/samples/<int:sample_id>', methods=['DELETE'])
@@ -151,7 +227,19 @@ def get_project(project_id):
 def create_project():
     data, error = _require_json_object();
     if error: return error
-    new_id = database.add_project(request.user_id, data['name'], data['pattern_json'], data.get('yarn_id'), data.get('sample_id'))
+    name = (data.get('name') or '').strip()
+    if not name:
+        return jsonify({"error": "name must not be empty"}), 400
+    pattern_json = data.get('pattern_json')
+    if not isinstance(pattern_json, dict) or not pattern_json:
+        return jsonify({"error": "pattern_json must be a non-empty JSON object"}), 400
+    yarn_id = data.get('yarn_id')
+    sample_id = data.get('sample_id')
+    if yarn_id is not None and not database.get_yarn_by_id(request.user_id, yarn_id):
+        return jsonify({"error": "Yarn not found"}), 404
+    if sample_id is not None and not database.get_sample_by_id(request.user_id, sample_id):
+        return jsonify({"error": "Sample not found"}), 404
+    new_id = database.add_project(request.user_id, name, pattern_json, yarn_id, sample_id)
     return jsonify({'id': new_id}), 201
 
 @app.route('/api/projects/<int:project_id>', methods=['PUT'])
@@ -159,7 +247,28 @@ def create_project():
 def update_project(project_id):
     data, error = _require_json_object();
     if error: return error
-    ok = database.update_project(request.user_id, project_id, **data)
+    payload = {}
+    if 'name' in data:
+        name = (data.get('name') or '').strip()
+        if not name:
+            return jsonify({"error": "name must not be empty"}), 400
+        payload['name'] = name
+    if 'pattern_json' in data:
+        pj = data.get('pattern_json')
+        if not isinstance(pj, dict) or not pj:
+            return jsonify({"error": "pattern_json must be a non-empty JSON object"}), 400
+        payload['pattern_json'] = pj
+    if 'yarn_id' in data:
+        yarn_id = data.get('yarn_id')
+        if yarn_id is not None and not database.get_yarn_by_id(request.user_id, yarn_id):
+            return jsonify({"error": "Yarn not found"}), 404
+        payload['yarn_id'] = yarn_id
+    if 'sample_id' in data:
+        sample_id = data.get('sample_id')
+        if sample_id is not None and not database.get_sample_by_id(request.user_id, sample_id):
+            return jsonify({"error": "Sample not found"}), 404
+        payload['sample_id'] = sample_id
+    ok = database.update_project(request.user_id, project_id, **payload)
     return (jsonify({'message':'ok'}),200) if ok else (jsonify({'error':'Project not found'}),404)
 
 @app.route('/api/projects/<int:project_id>', methods=['DELETE'])
@@ -171,11 +280,18 @@ def delete_project(project_id):
 @app.route('/api/calculate', methods=['POST'])
 @login_required
 def calculate():
-    data, _ = _require_json_object()
-    sample = database.get_sample_by_id(request.user_id, data['sample_id'])
-    yarn = database.get_yarn_by_id(request.user_id, data['yarn_id'])
+    data, err = _require_json_object()
+    if err: return err
+    sample_id, err = validate_positive_number(data.get('sample_id'), 'sample_id', as_int=True)
+    if err: return err
+    yarn_id, err = validate_positive_number(data.get('yarn_id'), 'yarn_id', as_int=True)
+    if err: return err
+    sample = database.get_sample_by_id(request.user_id, sample_id)
+    yarn = database.get_yarn_by_id(request.user_id, yarn_id)
     if not sample or not yarn: return jsonify({'error':'Sample or yarn not found'}),404
     objects=(data.get('pattern_json') or {}).get('objects',[])
+    if not isinstance(objects, list):
+        objects = []
     total_area=0.0
     for obj in objects:
         c=obj.get('customData') or {}; st=c.get('shapeType','rectangle')

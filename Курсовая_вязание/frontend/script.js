@@ -474,6 +474,7 @@ function syncDetailPanelFromSelection() {
   const derived = document.getElementById('detail-derived-text');
   const widthRow = document.getElementById('detail-field-width-row');
   const trapFields = document.getElementById('detail-trapezoid-fields');
+  const fillInput = document.getElementById('detail-fill-color');
   if (!hint || !fields || !derived) return;
 
   const multi = appCanvas.getActiveObject()?.type === 'activeSelection';
@@ -485,6 +486,7 @@ function syncDetailPanelFromSelection() {
       : 'Выберите одну фигуру на холсте.';
     fields.hidden = true;
     derived.textContent = '';
+    if (fillInput) fillInput.disabled = true;
     return;
   }
 
@@ -519,8 +521,58 @@ function syncDetailPanelFromSelection() {
   document.getElementById('detail-height-cm').value =
     cd.height_cm != null && Number.isFinite(Number(cd.height_cm)) ? String(cd.height_cm) : '';
   detailPanelMute = false;
+  if (fillInput) {
+    fillInput.disabled = false;
+    const fill = typeof obj.fill === 'string' ? obj.fill : '#6495ed';
+    fillInput.value = /^#[0-9a-fA-F]{6}$/.test(fill) ? fill : '#6495ed';
+  }
 
   derived.textContent = computeStitchesRowsFromCustomData(cd, shapeType).text;
+}
+
+function calcAreaFromObject(obj) {
+  const cd = readCustomData(obj);
+  const st = inferShapeType(obj, cd);
+  const widthCm = Number(cd.width_cm) || pxToCm((obj.width || 0) * (obj.scaleX || 1));
+  const heightCm = Number(cd.height_cm) || pxToCm((obj.height || 0) * (obj.scaleY || 1));
+  if (st === 'trapezoid') {
+    const wt = Number(cd.width_top_cm);
+    const wb = Number(cd.width_bottom_cm);
+    const h = Number(cd.height_cm) || heightCm;
+    if ([wt, wb, h].every((n) => Number.isFinite(n) && n > 0)) return ((wt + wb) / 2) * h;
+    return 0;
+  }
+  if (st === 'circle') {
+    const r = widthCm / 2;
+    return Math.PI * r * r;
+  }
+  if (st === 'ellipse') return Math.PI * (widthCm / 2) * (heightCm / 2);
+  if (st === 'triangle') return (widthCm * heightCm) / 2;
+  return widthCm * heightCm;
+}
+
+function updateTotalArea() {
+  if (!appCanvas) return;
+  const out = document.getElementById('total-area-value');
+  if (!out) return;
+  const total = appCanvas.getObjects().reduce((sum, obj) => sum + calcAreaFromObject(obj), 0);
+  out.textContent = `${total.toFixed(1)} см²`;
+}
+
+function duplicateObject(original) {
+  if (!original) return null;
+  const payload = original.toObject(['customData']);
+  const type = original.type;
+  let copy = null;
+  if (type === 'rect') copy = new fabric.Rect(payload);
+  else if (type === 'ellipse') copy = new fabric.Ellipse(payload);
+  else if (type === 'triangle') copy = new fabric.Triangle(payload);
+  else if (type === 'polygon') copy = new fabric.Polygon(payload.points || [], payload);
+  if (!copy) return null;
+  copy.set({ left: (original.left || 0) + 20, top: (original.top || 0) + 20 });
+  copy.set('customData', fabric.util.object.clone(readCustomData(original)));
+  applyScalingLocksToObject(copy);
+  return copy;
 }
 
 function applyDetailFieldsToSelection() {
@@ -655,9 +707,9 @@ async function exportToPDF() {
     const pdf = new jsPdfCtor({ orientation: 'portrait', unit: 'mm', format: 'a4' });
 
     pdf.setFontSize(16);
-    pdf.text('Отчёт по расчёту вязания', 14, 14);
+    pdf.text('Knitting calculation report', 14, 14);
     pdf.setFontSize(10);
-    pdf.text(`Дата создания: ${createdAt}`, 14, 20);
+    pdf.text(`Created at: ${createdAt}`, 14, 20);
 
     const pageWidth = pdf.internal.pageSize.getWidth();
     const imgWidth = pageWidth - 28;
@@ -667,34 +719,34 @@ async function exportToPDF() {
 
     let y = 150;
     pdf.setFontSize(12);
-    pdf.text('Результаты расчёта', 14, y);
+    pdf.text('Calculation results', 14, y);
     y += 7;
     pdf.setFontSize(10);
     if (!hasCalculation) {
-      pdf.text('Расчёт не выполнен.', 14, y);
+      pdf.text('Calculation has not been run.', 14, y);
       y += 6;
     }
-    [['Пряжа, г', calcValues.totalG], ['Пряжа, м', calcValues.totalM], ['Мотков', calcValues.skeins], ['Цена', calcValues.price]]
+    [['Yarn, g', calcValues.totalG], ['Yarn, m', calcValues.totalM], ['Skeins', calcValues.skeins], ['Price', calcValues.price]]
       .forEach(([label, value]) => {
         pdf.text(`${label}: ${value}`, 14, y);
         y += 6;
       });
 
     y += 2;
-    pdf.text(`Выбранная пряжа: ${yarnOption?.textContent?.trim() || '— не выбрано —'}`, 14, y);
+    pdf.text(`Selected yarn: ${yarnOption?.textContent?.trim() || '---'}`, 14, y);
     y += 6;
-    pdf.text(`Выбранный образец: ${sampleOption?.textContent?.trim() || '— не выбрано —'}`, 14, y);
+    pdf.text(`Selected sample: ${sampleOption?.textContent?.trim() || '---'}`, 14, y);
 
     pdf.addPage();
     pdf.setFontSize(13);
-    pdf.text('Техническая информация', 14, 14);
+    pdf.text('Technical information', 14, 14);
     pdf.setFontSize(10);
-    pdf.text('Версия приложения: 1.0.0', 14, 22);
+    pdf.text('App version: 1.0.0', 14, 22);
     const details = collectPatternDetailsForReport();
-    pdf.text('Список деталей и размеров:', 14, 30);
+    pdf.text('Parts and sizes:', 14, 30);
     let lineY = 36;
     if (!details.length) {
-      pdf.text('Нет деталей на холсте.', 14, lineY);
+      pdf.text('No parts on canvas.', 14, lineY);
     } else {
       details.forEach((line) => {
         pdf.text(line, 14, lineY);
@@ -955,6 +1007,7 @@ function resetCanvasToNewProject() {
   appCanvas.requestRenderAll();
   currentProjectId = null;
   syncDetailPanelFromSelection();
+  updateTotalArea();
 }
 
 async function updateCurrentProject() {
@@ -1048,6 +1101,7 @@ async function loadProjectById(projectId) {
           applyScalingLocksToAllCanvasObjects();
           currentProjectId = Number(projectId);
           syncDetailPanelFromSelection();
+          updateTotalArea();
           resolve();
         });
       } catch (err) {
@@ -1152,6 +1206,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       applyScalingLocksToObject(t);
     }
     syncDetailPanelFromSelection();
+    updateTotalArea();
   });
 
   ['detail-width-cm', 'detail-height-cm', 'detail-width-top-cm', 'detail-width-bottom-cm'].forEach(
@@ -1167,6 +1222,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   syncDetailPanelFromSelection();
+  updateTotalArea();
   document.getElementById('btn-add-part').addEventListener('click', () => {
     const w = 60 + Math.random() * 100;
     const h = 40 + Math.random() * 80;
@@ -1187,6 +1243,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     appCanvas.add(rect);
     appCanvas.setActiveObject(rect);
     appCanvas.requestRenderAll();
+    updateTotalArea();
   });
 
   document.getElementById('btn-add-circle').addEventListener('click', () => {
@@ -1210,6 +1267,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     applyScalingLocksToObject(ell);
     appCanvas.setActiveObject(ell);
     appCanvas.requestRenderAll();
+    updateTotalArea();
   });
 
   document.getElementById('btn-add-triangle').addEventListener('click', () => {
@@ -1233,6 +1291,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     applyScalingLocksToObject(tri);
     appCanvas.setActiveObject(tri);
     appCanvas.requestRenderAll();
+    updateTotalArea();
   });
 
   document.getElementById('btn-add-trapezoid').addEventListener('click', () => {
@@ -1258,6 +1317,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     appCanvas.add(poly);
     appCanvas.setActiveObject(poly);
     appCanvas.requestRenderAll();
+    updateTotalArea();
   });
 
   document.getElementById('btn-delete-part').addEventListener('click', () => {
@@ -1279,6 +1339,37 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     appCanvas.requestRenderAll();
     syncDetailPanelFromSelection();
+    updateTotalArea();
+  });
+
+  document.getElementById('btn-duplicate-part').addEventListener('click', () => {
+    const ao = appCanvas.getActiveObject();
+    if (!ao) return alert('Выберите деталь для дублирования');
+    const clones = [];
+    if (ao.type === 'activeSelection') {
+      (ao.getObjects ? ao.getObjects() : []).forEach((o) => {
+        const c = duplicateObject(o);
+        if (c) clones.push(c);
+      });
+    } else {
+      const c = duplicateObject(ao);
+      if (c) clones.push(c);
+    }
+    if (!clones.length) return;
+    appCanvas.discardActiveObject();
+    clones.forEach((c) => appCanvas.add(c));
+    if (clones.length === 1) appCanvas.setActiveObject(clones[0]);
+    else appCanvas.setActiveObject(new fabric.ActiveSelection(clones, { canvas: appCanvas }));
+    appCanvas.requestRenderAll();
+    syncDetailPanelFromSelection();
+    updateTotalArea();
+  });
+
+  document.getElementById('detail-fill-color')?.addEventListener('input', (e) => {
+    const obj = getSelectedDetailObject();
+    if (!obj) return;
+    obj.set('fill', e.target.value);
+    appCanvas.requestRenderAll();
   });
 
   document.getElementById('btn-detail-apply').addEventListener('click', () => {
