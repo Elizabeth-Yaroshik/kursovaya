@@ -1333,8 +1333,6 @@ async function loadCommunityProjects() {
   const list = document.getElementById('community-project-list');
   if (!list) return;
   list.innerHTML = '';
-  const reviewBox = document.getElementById('community-review-box');
-  if (reviewBox) reviewBox.classList.add('hidden');
   (projects || []).forEach((p) => {
     const li = document.createElement('li');
     li.className = 'community-project-item';
@@ -1365,8 +1363,14 @@ async function loadCommunityProjects() {
     btn.type = 'button';
     btn.textContent = 'Оценить / Комментировать';
     btn.addEventListener('click', () => {
-      document.getElementById('community-project-id').value = String(p.id);
-      document.getElementById('community-review-box').classList.remove('hidden');
+      const projectIdInput = document.getElementById('community-project-id');
+      const ratingInput = document.getElementById('community-rating');
+      const commentInput = document.getElementById('community-comment');
+      const reviewDialog = document.getElementById('dialog-community-review');
+      if (projectIdInput) projectIdInput.value = String(p.id);
+      if (ratingInput) ratingInput.value = '';
+      if (commentInput) commentInput.value = '';
+      if (reviewDialog && typeof reviewDialog.showModal === 'function') reviewDialog.showModal();
     });
     li.appendChild(title);
     li.appendChild(preview);
@@ -1383,7 +1387,14 @@ async function sendCommunityReview() {
   const payload = { comment };
   if (ratingRaw) payload.rating = parseInt(ratingRaw, 10);
   await apiFetchJson(`/api/public-projects/${projectId}/reviews`, { method: 'POST', body: JSON.stringify(payload) });
+  const reviewDialog = document.getElementById('dialog-community-review');
+  if (reviewDialog && reviewDialog.open) reviewDialog.close();
   alert('Отзыв отправлен');
+}
+
+function closeCommunityReviewDialog() {
+  const reviewDialog = document.getElementById('dialog-community-review');
+  if (reviewDialog && reviewDialog.open) reviewDialog.close();
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -1825,6 +1836,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('btn-home')?.addEventListener('click', () => showPage('main'));
   document.getElementById('btn-community-refresh')?.addEventListener('click', () => loadCommunityProjects().catch((err) => showUserError(err.message)));
   document.getElementById('btn-community-review-send')?.addEventListener('click', () => sendCommunityReview().catch((err) => showUserError(err.message)));
+  document.getElementById('btn-community-review-cancel')?.addEventListener('click', closeCommunityReviewDialog);
   document.getElementById('form-login')?.addEventListener('submit', async (e) => { e.preventDefault(); try { const data = await apiFetchJson('/api/login',{ method:'POST', body: JSON.stringify({ username: document.getElementById('login-username').value.trim(), password: document.getElementById('login-password').value })}); authToken=data.token; localStorage.setItem('token',authToken); const me=await apiGet('/api/me'); currentUser=me; document.getElementById('main-welcome').textContent=`Добро пожаловать, ${me.username}!`; showPage('main'); await loadYarns({skipOverlay:true}); await loadSamples({skipOverlay:true}); await loadProjectList({skipOverlay:true}); } catch(err){ showUserError(err.message);} });
   document.getElementById('form-register')?.addEventListener('submit', async (e) => { e.preventDefault(); try { const data = await apiFetchJson('/api/register',{ method:'POST', body: JSON.stringify({ username: document.getElementById('register-username').value.trim(), password: document.getElementById('register-password').value })}); authToken=data.token; localStorage.setItem('token',authToken); const me=await apiGet('/api/me'); currentUser=me; document.getElementById('main-welcome').textContent=`Добро пожаловать, ${me.username}!`; showPage('main'); await loadYarns({skipOverlay:true}); await loadSamples({skipOverlay:true}); await loadProjectList({skipOverlay:true}); } catch(err){ showUserError(err.message);} });
   document.querySelectorAll('.main-nav-btn').forEach((b)=>b.addEventListener('click', ()=>showPage(b.dataset.page)));
