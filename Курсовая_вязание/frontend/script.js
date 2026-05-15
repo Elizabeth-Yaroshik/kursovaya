@@ -1612,7 +1612,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   const panels = {
     yarn: document.getElementById('panel-yarn'),
     swatches: document.getElementById('panel-swatches'),
-    projects: document.getElementById('panel-projects'),
   };
 
   tabs.forEach((tab) => {
@@ -1783,7 +1782,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('btn-load').addEventListener('click', async () => {
     const id = document.getElementById('select-project').value;
     if (!id) {
-      alert('Выберите проект в списке на странице «База пряжи», вкладка «Проекты»');
+      alert('Выберите проект в списке на странице «Мои проекты».');
       return;
     }
     try {
