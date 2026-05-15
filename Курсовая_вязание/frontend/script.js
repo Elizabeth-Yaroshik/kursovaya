@@ -729,21 +729,48 @@ async function buildProjectPdfBlob(patternJson, projectName) {
 
 
 function addUnicodeLineAsImage(pdf, text, x, y, opts = {}) {
-  const fontSize = opts.fontSize || 10;
+  const fontSize = opts.fontSize || 10;     // размер в пунктах (pt)
   const color = opts.color || '#1e182e';
   const maxWidthMm = opts.maxWidthMm || 180;
-  const c = document.createElement('canvas');
-  c.width = 2000;
-  c.height = Math.max(100, Math.ceil(fontSize * 9));
-  const ctx = c.getContext('2d');
+
+  // 1 pt = 1/72 дюйма ≈ 0.3528 мм. Для canvas используем DPI 96 => 1pt = 96/72 = 1.333px
+  const pxPerPt = 96 / 72;
+  const fontSizePx = fontSize * pxPerPt;
+
+  // Создаём canvas, который будет точно соответствовать размеру текста в PDF
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+
+  // Задаём шрифт с запасными вариантами для кириллицы
+  ctx.font = `${fontSizePx}px 'Noto Sans', 'DejaVu Sans', 'Segoe UI', 'Arial', 'Arial Unicode MS', sans-serif`;
+  const textWidthPx = ctx.measureText(text).width;
+  const textHeightPx = fontSizePx; // приблизительно
+
+  canvas.width = textWidthPx + 4;   // небольшой запас по бокам
+  canvas.height = textHeightPx + 4; // запас сверху/снизу
+
+  // Пересчитываем координаты и размер шрифта с учётом новой ширины canvas
+  ctx.font = `${fontSizePx}px 'Noto Sans', 'DejaVu Sans', 'Segoe UI', 'Arial', 'Arial Unicode MS', sans-serif`;
   ctx.fillStyle = '#ffffff';
-  ctx.fillRect(0, 0, c.width, c.height);
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.fillStyle = color;
-  ctx.font = `${fontSize * 5}px Arial, 'DejaVu Sans', sans-serif`;
   ctx.textBaseline = 'top';
-  ctx.fillText(String(text || ''), 0, 0);
-  const data = c.toDataURL('image/png');
-  pdf.addImage(data, 'PNG', x, y - 3.2, maxWidthMm, fontSize * 0.75);
+  ctx.fillText(text, 2, 2);
+
+  // Теперь ширина изображения в мм: исходная ширина в px переводится в мм (px / 96 * 25.4)
+  const imgWidthMm = (canvas.width / 96) * 25.4;
+  const imgHeightMm = (canvas.height / 96) * 25.4;
+  // Если ширина превышает maxWidthMm, масштабируем пропорционально
+  let finalWidth = imgWidthMm;
+  let finalHeight = imgHeightMm;
+  if (finalWidth > maxWidthMm) {
+    const scale = maxWidthMm / finalWidth;
+    finalWidth = maxWidthMm;
+    finalHeight = imgHeightMm * scale;
+  }
+
+  const imgData = canvas.toDataURL('image/png');
+  pdf.addImage(imgData, 'PNG', x, y, finalWidth, finalHeight);
 }
 
 async function exportToPDF() {
