@@ -497,8 +497,8 @@ function syncDetailPanelFromSelection() {
 
   if (widthRow && trapFields) {
     if (shapeType === 'trapezoid') {
-      widthRow.hidden = true;
-      trapFields.hidden = false;
+      widthRow.style.display = 'none';     
+      trapFields.style.display = 'block';
       document.getElementById('detail-width-cm').value = '';
       document.getElementById('detail-width-top-cm').value =
         cd.width_top_cm != null && Number.isFinite(Number(cd.width_top_cm)) ? String(cd.width_top_cm) : '';
@@ -507,8 +507,8 @@ function syncDetailPanelFromSelection() {
           ? String(cd.width_bottom_cm)
           : '';
     } else {
-      widthRow.hidden = false;
-      trapFields.hidden = true;
+      widthRow.style.display = '';
+      trapFields.style.display = 'none';
       document.getElementById('detail-width-cm').value =
         cd.width_cm != null && Number.isFinite(Number(cd.width_cm)) ? String(cd.width_cm) : '';
       document.getElementById('detail-width-top-cm').value = '';
