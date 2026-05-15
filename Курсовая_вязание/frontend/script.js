@@ -669,13 +669,19 @@ function collectPatternDetailsForReport() {
     triangle: 'треугольник',
     trapezoid: 'трапеция',
   };
+  const selectedSample = document.querySelector('#select-sample option:checked')?.textContent?.trim() || '—';
   return appCanvas.getObjects().map((obj, index) => {
     const cd = readCustomData(obj);
     const shapeType = inferShapeType(obj, cd);
+    const gaugeInfo = computeStitchesRowsFromCustomData(cd, shapeType);
+    const stitchesRows = (gaugeInfo && Number.isFinite(gaugeInfo.stitches) && Number.isFinite(gaugeInfo.rows))
+      ? `≈ ${gaugeInfo.stitches} п., ≈ ${gaugeInfo.rows} р.`
+      : 'нет данных (выберите образец и размеры)';
+    const seamName = selectedSample;
     if (shapeType === 'trapezoid') {
-      return `Деталь ${index + 1}: трапеция (${Number(cd.width_top_cm || 0).toFixed(1)} / ${Number(cd.width_bottom_cm || 0).toFixed(1)} / ${Number(cd.height_cm || 0).toFixed(1)} см)`;
+      return `Деталь ${index + 1}: трапеция ${Number(cd.width_top_cm || 0).toFixed(1)}/${Number(cd.width_bottom_cm || 0).toFixed(1)}/${Number(cd.height_cm || 0).toFixed(1)} см; шов/образец: ${seamName}; петли/ряды: ${stitchesRows}`;
     }
-    return `Деталь ${index + 1}: ${shapeNames[shapeType] || shapeType} (${Number(cd.width_cm || 0).toFixed(1)} на ${Number(cd.height_cm || 0).toFixed(1)} см)`;
+    return `Деталь ${index + 1}: ${shapeNames[shapeType] || shapeType} ${Number(cd.width_cm || 0).toFixed(1)}x${Number(cd.height_cm || 0).toFixed(1)} см; шов/образец: ${seamName}; петли/ряды: ${stitchesRows}`;
   });
 }
 
@@ -719,6 +725,25 @@ async function buildProjectPdfBlob(patternJson, projectName) {
     y += 6;
   });
   return pdf.output('blob');
+}
+
+
+function addUnicodeLineAsImage(pdf, text, x, y, opts = {}) {
+  const fontSize = opts.fontSize || 10;
+  const color = opts.color || '#1e182e';
+  const maxWidthMm = opts.maxWidthMm || 180;
+  const c = document.createElement('canvas');
+  c.width = 2000;
+  c.height = Math.max(100, Math.ceil(fontSize * 9));
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, c.width, c.height);
+  ctx.fillStyle = color;
+  ctx.font = `${fontSize * 5}px Arial, 'DejaVu Sans', sans-serif`;
+  ctx.textBaseline = 'top';
+  ctx.fillText(String(text || ''), 0, 0);
+  const data = c.toDataURL('image/png');
+  pdf.addImage(data, 'PNG', x, y - 3.2, maxWidthMm, fontSize * 0.75);
 }
 
 async function exportToPDF() {
@@ -766,11 +791,11 @@ async function exportToPDF() {
     pdf.roundedRect(10, 8, 190, 18, 3, 3, 'F');
     pdf.setTextColor(255, 255, 255);
     pdf.setFontSize(15);
-    pdf.text('Knitting Project Report', 14, 19);
+    addUnicodeLineAsImage(pdf, 'Отчёт по вязальному проекту', 14, 19, { fontSize: 15, color: '#ffffff', maxWidthMm: 150 });
     pdf.setTextColor(30, 24, 46);
     pdf.setFontSize(10);
-    pdf.text(`Project: ${projectName}`, 14, 30);
-    pdf.text(`Generated: ${createdAt}`, 14, 36);
+    addUnicodeLineAsImage(pdf, `Проект: ${projectName}`, 14, 30);
+    addUnicodeLineAsImage(pdf, `Сформировано: ${createdAt}`, 14, 36);
 
     const pageWidth = pdf.internal.pageSize.getWidth();
     const imgWidth = pageWidth - 28;
@@ -780,50 +805,50 @@ async function exportToPDF() {
 
     let y = 156;
     pdf.setFontSize(12);
-    pdf.text('Calculation results', 14, y);
+    addUnicodeLineAsImage(pdf, 'Использованная пряжа и расчёт', 14, y, { fontSize: 12 });
     y += 7;
     pdf.setFontSize(10);
     if (!hasCalculation) {
-      pdf.text('Calculation has not been run yet.', 14, y);
+      addUnicodeLineAsImage(pdf, 'Расчёт ещё не запущен.', 14, y);
       y += 6;
     }
-    [['Yarn, g', calcValues.totalG], ['Yarn, m', calcValues.totalM], ['Skeins', calcValues.skeins], ['Price', calcValues.price]]
+    [['Пряжа, г', calcValues.totalG], ['Пряжа, м', calcValues.totalM], ['Мотки', calcValues.skeins], ['Стоимость', calcValues.price]]
       .forEach(([label, value]) => {
-        pdf.text(`${label}: ${value}`, 14, y);
+        addUnicodeLineAsImage(pdf, `${label}: ${value}`, 14, y);
         y += 6;
       });
 
     y += 2;
-    pdf.text(`Selected yarn: ${yarnOption?.textContent?.trim() || '—'}`, 14, y);
+    addUnicodeLineAsImage(pdf, `Выбранная пряжа: ${yarnOption?.textContent?.trim() || '—'}`, 14, y);
     y += 6;
-    pdf.text(`Selected swatch: ${sampleOption?.textContent?.trim() || '—'}`, 14, y);
+    addUnicodeLineAsImage(pdf, `Выбранный образец/шов: ${sampleOption?.textContent?.trim() || '—'}`, 14, y);
 
     pdf.addPage();
     pdf.setFontSize(13);
     pdf.setTextColor(111, 76, 255);
-    pdf.text('Technical details', 14, 14);
+    addUnicodeLineAsImage(pdf, 'Детали проекта', 14, 14, { fontSize: 13, color: '#6f4cff' });
     pdf.setTextColor(30, 24, 46);
     pdf.setFontSize(10);
-    pdf.text('App version: 1.0.0', 14, 22);
+    addUnicodeLineAsImage(pdf, 'Версия приложения: 1.0.0', 14, 22);
     const details = collectPatternDetailsForReport();
-    pdf.text('Parts and dimensions:', 14, 30);
+    addUnicodeLineAsImage(pdf, 'Каждая деталь (отдельно):', 14, 30);
     let lineY = 36;
     if (!details.length) {
-      pdf.text('No parts on canvas yet.', 14, lineY);
+      addUnicodeLineAsImage(pdf, 'Пока нет деталей на холсте.', 14, lineY);
     } else {
       details.forEach((line) => {
-        pdf.text(line, 14, lineY);
+        addUnicodeLineAsImage(pdf, line, 14, lineY);
         lineY += 6;
       });
     }
     lineY += 4;
     pdf.setFontSize(11);
-    pdf.text('Required tools:', 14, lineY);
+    addUnicodeLineAsImage(pdf, 'Дополнительно:', 14, lineY, { fontSize: 11 });
     lineY += 6;
     pdf.setFontSize(10);
-    ['Yarn with matching gauge.', 'Circular needles in two sizes.', 'Hook, markers, tapestry needle.']
+    ['Убедитесь, что плотность совпадает с образцом.', 'Проверьте шов/образец для каждой детали.', 'Числа петель и рядов указаны как примерный расчёт.']
       .forEach((line) => {
-        pdf.text(`- ${line}`, 16, lineY);
+        addUnicodeLineAsImage(pdf, `- ${line}`, 16, lineY);
         lineY += 6;
       });
 
