@@ -317,6 +317,28 @@ function getGaugeFromSelectedSample() {
   };
 }
 
+function getSampleById(sampleId) {
+  if (sampleId == null || sampleId === '') return null;
+  return samplesCache.find((row) => String(row.id) === String(sampleId)) || null;
+}
+
+function getYarnById(yarnId) {
+  if (yarnId == null || yarnId === '') return null;
+  return yarnsCache.find((row) => String(row.id) === String(yarnId)) || null;
+}
+
+function getGaugeFromCustomData(cd) {
+  const sample = getSampleById(cd?.sample_id);
+  if (!sample || !sample.width_cm || !sample.height_cm) return null;
+  const w = Number(sample.width_cm);
+  const h = Number(sample.height_cm);
+  if (!Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0) return null;
+  return {
+    stitches_per_10cm: sample.stitches / (w / 10),
+    rows_per_10cm: sample.rows / (h / 10),
+  };
+}
+
 function gaugeWidthCm(cd, shapeType) {
   const st = shapeType || cd.shapeType || 'rectangle';
   if (st === 'trapezoid') {
@@ -329,10 +351,10 @@ function gaugeWidthCm(cd, shapeType) {
 }
 
 function computeStitchesRowsFromCustomData(cd, shapeType) {
-  const gauge = getGaugeFromSelectedSample();
+  const gauge = getGaugeFromCustomData(cd) || getGaugeFromSelectedSample();
   if (!gauge) {
     return {
-      text: 'Выберите образец на странице «База пряжи», чтобы показать расчёт петель и рядов.',
+      text: 'Выберите образец для детали, чтобы показать расчёт петель и рядов.',
     };
   }
   const st = shapeType || cd.shapeType || 'rectangle';
@@ -475,6 +497,8 @@ function syncDetailPanelFromSelection() {
   const widthRow = document.getElementById('detail-field-width-row');
   const trapFields = document.getElementById('detail-trapezoid-fields');
   const fillInput = document.getElementById('detail-fill-color');
+  const detailSampleSelect = document.getElementById('detail-sample-id');
+  const detailYarnSelect = document.getElementById('detail-yarn-id');
   if (!hint || !fields || !derived) return;
 
   const multi = appCanvas.getActiveObject()?.type === 'activeSelection';
@@ -487,6 +511,8 @@ function syncDetailPanelFromSelection() {
     fields.hidden = true;
     derived.textContent = '';
     if (fillInput) fillInput.disabled = true;
+    if (detailSampleSelect) detailSampleSelect.disabled = true;
+    if (detailYarnSelect) detailYarnSelect.disabled = true;
     return;
   }
 
@@ -525,6 +551,14 @@ function syncDetailPanelFromSelection() {
     fillInput.disabled = false;
     const fill = typeof obj.fill === 'string' ? obj.fill : '#6495ed';
     fillInput.value = /^#[0-9a-fA-F]{6}$/.test(fill) ? fill : '#6495ed';
+  }
+  if (detailSampleSelect) {
+    detailSampleSelect.disabled = false;
+    detailSampleSelect.value = cd.sample_id != null ? String(cd.sample_id) : '';
+  }
+  if (detailYarnSelect) {
+    detailYarnSelect.disabled = false;
+    detailYarnSelect.value = cd.yarn_id != null ? String(cd.yarn_id) : '';
   }
 
   derived.textContent = computeStitchesRowsFromCustomData(cd, shapeType).text;
@@ -587,6 +621,10 @@ function applyDetailFieldsToSelection() {
     ...prev,
     shapeType,
   };
+  const detailSampleSelect = document.getElementById('detail-sample-id');
+  const detailYarnSelect = document.getElementById('detail-yarn-id');
+  cd.sample_id = detailSampleSelect && detailSampleSelect.value ? parseInt(detailSampleSelect.value, 10) : null;
+  cd.yarn_id = detailYarnSelect && detailYarnSelect.value ? parseInt(detailYarnSelect.value, 10) : null;
 
   if (shapeType === 'trapezoid') {
     cd.width_top_cm = parseOptionalFloatFromInput('detail-width-top-cm');
@@ -617,10 +655,6 @@ async function runCalculate() {
   }
   const sampleSel = document.getElementById('select-sample').value;
   const yarnSel = document.getElementById('select-yarn').value;
-  if (!sampleSel || !yarnSel) {
-    alert('Выберите образец и пряжу на странице «База пряжи» (вкладки «Образцы» и «Пряжа»)');
-    return;
-  }
 
   const empty = document.getElementById('calc-result-empty');
   const dl = document.getElementById('calc-result-values');
@@ -630,14 +664,14 @@ async function runCalculate() {
       method: 'POST',
       body: JSON.stringify({
         pattern_json: patternToJSON(),
-        sample_id: parseInt(sampleSel, 10),
-        yarn_id: parseInt(yarnSel, 10),
+        sample_id: sampleSel ? parseInt(sampleSel, 10) : null,
+        yarn_id: yarnSel ? parseInt(yarnSel, 10) : null,
       }),
     });
     if (empty) {
       empty.hidden = true;
       empty.textContent =
-        'Нажмите «Рассчитать» после выбора пряжи и образца на странице «База пряжи».';
+        'Нажмите «Рассчитать» после выбора пряжи и образца (глобально или по деталям).';
     }
     if (dl) dl.hidden = false;
     const g = document.getElementById('calc-total-g');
@@ -677,11 +711,12 @@ function collectPatternDetailsForReport() {
     const stitchesRows = (gaugeInfo && Number.isFinite(gaugeInfo.stitches) && Number.isFinite(gaugeInfo.rows))
       ? `≈ ${gaugeInfo.stitches} п., ≈ ${gaugeInfo.rows} р.`
       : 'нет данных (выберите образец и размеры)';
-    const seamName = selectedSample;
+    const seamName = getSampleById(cd.sample_id)?.name || selectedSample;
+    const yarnName = getYarnById(cd.yarn_id)?.name || '—';
     if (shapeType === 'trapezoid') {
-      return `Деталь ${index + 1}: трапеция ${Number(cd.width_top_cm || 0).toFixed(1)}/${Number(cd.width_bottom_cm || 0).toFixed(1)}/${Number(cd.height_cm || 0).toFixed(1)} см; шов/образец: ${seamName}; петли/ряды: ${stitchesRows}`;
+      return `Деталь ${index + 1}: трапеция ${Number(cd.width_top_cm || 0).toFixed(1)}/${Number(cd.width_bottom_cm || 0).toFixed(1)}/${Number(cd.height_cm || 0).toFixed(1)} см; шов/образец: ${seamName}; пряжа: ${yarnName}; петли/ряды: ${stitchesRows}`;
     }
-    return `Деталь ${index + 1}: ${shapeNames[shapeType] || shapeType} ${Number(cd.width_cm || 0).toFixed(1)}x${Number(cd.height_cm || 0).toFixed(1)} см; шов/образец: ${seamName}; петли/ряды: ${stitchesRows}`;
+    return `Деталь ${index + 1}: ${shapeNames[shapeType] || shapeType} ${Number(cd.width_cm || 0).toFixed(1)}x${Number(cd.height_cm || 0).toFixed(1)} см; шов/образец: ${seamName}; пряжа: ${yarnName}; петли/ряды: ${stitchesRows}`;
   });
 }
 
@@ -895,19 +930,22 @@ async function loadYarns(opts = {}) {
     const data = await apiGet('/api/yarns');
     yarnsCache = Array.isArray(data) ? data : [];
 
-    const sel = document.getElementById('select-yarn');
-    if (!sel) return;
-    const prev = sel.value;
-    sel.innerHTML = '<option value="">— не выбрано —</option>';
-    yarnsCache.forEach((y) => {
-      const opt = document.createElement('option');
-      opt.value = String(y.id);
-      opt.textContent = y.name;
-      sel.appendChild(opt);
+    const yarnSelects = ['select-yarn', 'detail-yarn-id']
+      .map((id) => document.getElementById(id))
+      .filter(Boolean);
+    yarnSelects.forEach((sel) => {
+      const prev = sel.value;
+      sel.innerHTML = '<option value="">— не выбрано —</option>';
+      yarnsCache.forEach((y) => {
+        const opt = document.createElement('option');
+        opt.value = String(y.id);
+        opt.textContent = y.name;
+        sel.appendChild(opt);
+      });
+      if (prev && yarnsCache.some((y) => String(y.id) === prev)) {
+        sel.value = prev;
+      }
     });
-    if (prev && yarnsCache.some((y) => String(y.id) === prev)) {
-      sel.value = prev;
-    }
   } catch (e) {
     console.error('[loadYarns]', e);
     yarnsCache = [];
@@ -973,19 +1011,22 @@ async function loadSamples(opts = {}) {
     const data = await apiGet('/api/samples');
     samplesCache = Array.isArray(data) ? data : [];
 
-    const sel = document.getElementById('select-sample');
-    if (!sel) return;
-    const prev = sel.value;
-    sel.innerHTML = '<option value="">— не выбрано —</option>';
-    samplesCache.forEach((s) => {
-      const opt = document.createElement('option');
-      opt.value = String(s.id);
-      opt.textContent = s.name;
-      sel.appendChild(opt);
+    const sampleSelects = ['select-sample', 'detail-sample-id']
+      .map((id) => document.getElementById(id))
+      .filter(Boolean);
+    sampleSelects.forEach((sel) => {
+      const prev = sel.value;
+      sel.innerHTML = '<option value="">— не выбрано —</option>';
+      samplesCache.forEach((s) => {
+        const opt = document.createElement('option');
+        opt.value = String(s.id);
+        opt.textContent = s.name;
+        sel.appendChild(opt);
+      });
+      if (prev && samplesCache.some((s) => String(s.id) === prev)) {
+        sel.value = prev;
+      }
     });
-    if (prev && samplesCache.some((s) => String(s.id) === prev)) {
-      sel.value = prev;
-    }
   } catch (e) {
     console.error('[loadSamples]', e);
     samplesCache = [];
