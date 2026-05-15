@@ -608,6 +608,109 @@ async function runCalculate() {
   }
 }
 
+function collectPatternDetailsForReport() {
+  if (!appCanvas) return [];
+  return appCanvas.getObjects().map((obj, index) => {
+    const cd = readCustomData(obj);
+    const shapeType = inferShapeType(obj, cd);
+    if (shapeType === 'trapezoid') {
+      return `#${index + 1}: трапеция (${Number(cd.width_top_cm || 0).toFixed(1)} / ${Number(cd.width_bottom_cm || 0).toFixed(1)} / ${Number(cd.height_cm || 0).toFixed(1)} см)`;
+    }
+    return `#${index + 1}: ${shapeType} (${Number(cd.width_cm || 0).toFixed(1)} x ${Number(cd.height_cm || 0).toFixed(1)} см)`;
+  });
+}
+
+async function exportToPDF() {
+  showLoading();
+  try {
+    if (typeof window.html2canvas !== 'function') {
+      throw new Error('Библиотека html2canvas не загружена.');
+    }
+    const jsPdfCtor = window.jspdf?.jsPDF;
+    if (typeof jsPdfCtor !== 'function') {
+      throw new Error('Библиотека jsPDF не загружена.');
+    }
+    const canvasElement = document.getElementById('c');
+    if (!canvasElement) throw new Error('Холст #c не найден.');
+
+    const screenshotCanvas = await window.html2canvas(canvasElement, {
+      scale: 2,
+      backgroundColor: '#ffffff',
+    });
+    const screenshotData = screenshotCanvas.toDataURL('image/png');
+
+    const yarnOption = document.querySelector('#select-yarn option:checked');
+    const sampleOption = document.querySelector('#select-sample option:checked');
+    const hasCalculation = !document.getElementById('calc-result-values')?.hidden;
+    const calcValues = {
+      totalG: document.getElementById('calc-total-g')?.textContent?.trim() || '—',
+      totalM: document.getElementById('calc-total-m')?.textContent?.trim() || '—',
+      skeins: document.getElementById('calc-skeins')?.textContent?.trim() || '—',
+      price: document.getElementById('calc-price')?.textContent?.trim() || '—',
+    };
+
+    const now = new Date();
+    const createdAt = now.toLocaleString('ru-RU');
+    const fileDate = now.toISOString().slice(0, 10);
+    const pdf = new jsPdfCtor({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+
+    pdf.setFontSize(16);
+    pdf.text('Отчёт по расчёту вязания', 14, 14);
+    pdf.setFontSize(10);
+    pdf.text(`Дата создания: ${createdAt}`, 14, 20);
+
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const imgWidth = pageWidth - 28;
+    const ratio = screenshotCanvas.height / screenshotCanvas.width;
+    const imgHeight = imgWidth * ratio;
+    pdf.addImage(screenshotData, 'PNG', 14, 25, imgWidth, Math.min(imgHeight, 115));
+
+    let y = 150;
+    pdf.setFontSize(12);
+    pdf.text('Результаты расчёта', 14, y);
+    y += 7;
+    pdf.setFontSize(10);
+    if (!hasCalculation) {
+      pdf.text('Расчёт не выполнен.', 14, y);
+      y += 6;
+    }
+    [['Пряжа, г', calcValues.totalG], ['Пряжа, м', calcValues.totalM], ['Мотков', calcValues.skeins], ['Цена', calcValues.price]]
+      .forEach(([label, value]) => {
+        pdf.text(`${label}: ${value}`, 14, y);
+        y += 6;
+      });
+
+    y += 2;
+    pdf.text(`Выбранная пряжа: ${yarnOption?.textContent?.trim() || '— не выбрано —'}`, 14, y);
+    y += 6;
+    pdf.text(`Выбранный образец: ${sampleOption?.textContent?.trim() || '— не выбрано —'}`, 14, y);
+
+    pdf.addPage();
+    pdf.setFontSize(13);
+    pdf.text('Техническая информация', 14, 14);
+    pdf.setFontSize(10);
+    pdf.text('Версия приложения: 1.0.0', 14, 22);
+    const details = collectPatternDetailsForReport();
+    pdf.text('Список деталей и размеров:', 14, 30);
+    let lineY = 36;
+    if (!details.length) {
+      pdf.text('Нет деталей на холсте.', 14, lineY);
+    } else {
+      details.forEach((line) => {
+        pdf.text(line, 14, lineY);
+        lineY += 6;
+      });
+    }
+
+    pdf.save(`knitting_report_${fileDate}.pdf`);
+  } catch (err) {
+    console.error('[exportToPDF]', err);
+    showUserError(`Ошибка экспорта PDF: ${err.message}`);
+  } finally {
+    hideLoading();
+  }
+}
+
 async function loadYarns(opts = {}) {
   const skipOverlay = Boolean(opts.skipOverlay);
   if (!skipOverlay) showLoading();
@@ -1340,6 +1443,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('btn-save').addEventListener('click', () => saveProject());
 
   document.getElementById('btn-calc').addEventListener('click', () => runCalculate());
+  document.getElementById('btn-export-pdf')?.addEventListener('click', () => exportToPDF());
 
   document.getElementById('btn-project-update').addEventListener('click', () => updateCurrentProject());
   document.getElementById('btn-project-delete').addEventListener('click', () => deleteCurrentProject());
