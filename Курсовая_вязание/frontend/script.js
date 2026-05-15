@@ -662,13 +662,20 @@ async function runCalculate() {
 
 function collectPatternDetailsForReport() {
   if (!appCanvas) return [];
+  const shapeNames = {
+    rectangle: 'прямоугольник',
+    circle: 'круг',
+    ellipse: 'овал',
+    triangle: 'треугольник',
+    trapezoid: 'трапеция',
+  };
   return appCanvas.getObjects().map((obj, index) => {
     const cd = readCustomData(obj);
     const shapeType = inferShapeType(obj, cd);
     if (shapeType === 'trapezoid') {
-      return `#${index + 1}: трапеция (${Number(cd.width_top_cm || 0).toFixed(1)} / ${Number(cd.width_bottom_cm || 0).toFixed(1)} / ${Number(cd.height_cm || 0).toFixed(1)} см)`;
+      return `Деталь ${index + 1}: трапеция (${Number(cd.width_top_cm || 0).toFixed(1)} / ${Number(cd.width_bottom_cm || 0).toFixed(1)} / ${Number(cd.height_cm || 0).toFixed(1)} см)`;
     }
-    return `#${index + 1}: ${shapeType} (${Number(cd.width_cm || 0).toFixed(1)} x ${Number(cd.height_cm || 0).toFixed(1)} см)`;
+    return `Деталь ${index + 1}: ${shapeNames[shapeType] || shapeType} (${Number(cd.width_cm || 0).toFixed(1)} на ${Number(cd.height_cm || 0).toFixed(1)} см)`;
   });
 }
 
@@ -701,60 +708,96 @@ async function exportToPDF() {
       price: document.getElementById('calc-price')?.textContent?.trim() || '—',
     };
 
+    const projectNameInput = document.getElementById('input-project-name');
+    const rawProjectName = projectNameInput?.value?.trim() || '';
+    const projectName = rawProjectName || 'Проект_без_названия';
+    const safeProjectName = projectName
+      .replace(/[\\/:*?"<>|]+/g, '_')
+      .replace(/\s+/g, '_')
+      .slice(0, 80);
     const now = new Date();
     const createdAt = now.toLocaleString('ru-RU');
     const fileDate = now.toISOString().slice(0, 10);
     const pdf = new jsPdfCtor({ orientation: 'portrait', unit: 'mm', format: 'a4' });
 
-    pdf.setFontSize(16);
-    pdf.text('Knitting calculation report', 14, 14);
+    pdf.setFillColor(111, 76, 255);
+    pdf.roundedRect(10, 8, 190, 18, 3, 3, 'F');
+    pdf.setTextColor(255, 255, 255);
+    pdf.setFontSize(15);
+    pdf.text('Отчёт по вязальному проекту', 14, 19);
+    pdf.setTextColor(30, 24, 46);
     pdf.setFontSize(10);
-    pdf.text(`Created at: ${createdAt}`, 14, 20);
+    pdf.text(`Проект: ${projectName}`, 14, 30);
+    pdf.text(`Дата создания: ${createdAt}`, 14, 36);
 
     const pageWidth = pdf.internal.pageSize.getWidth();
     const imgWidth = pageWidth - 28;
     const ratio = screenshotCanvas.height / screenshotCanvas.width;
     const imgHeight = imgWidth * ratio;
-    pdf.addImage(screenshotData, 'PNG', 14, 25, imgWidth, Math.min(imgHeight, 115));
+    pdf.addImage(screenshotData, 'PNG', 14, 42, imgWidth, Math.min(imgHeight, 110));
 
-    let y = 150;
+    let y = 156;
     pdf.setFontSize(12);
-    pdf.text('Calculation results', 14, y);
+    pdf.text('Результаты расчёта', 14, y);
     y += 7;
     pdf.setFontSize(10);
     if (!hasCalculation) {
-      pdf.text('Calculation has not been run.', 14, y);
+      pdf.text('Расчёт ещё не выполнялся.', 14, y);
       y += 6;
     }
-    [['Yarn, g', calcValues.totalG], ['Yarn, m', calcValues.totalM], ['Skeins', calcValues.skeins], ['Price', calcValues.price]]
+    [['Пряжа, г', calcValues.totalG], ['Пряжа, м', calcValues.totalM], ['Мотков', calcValues.skeins], ['Стоимость', calcValues.price]]
       .forEach(([label, value]) => {
         pdf.text(`${label}: ${value}`, 14, y);
         y += 6;
       });
 
     y += 2;
-    pdf.text(`Selected yarn: ${yarnOption?.textContent?.trim() || '---'}`, 14, y);
+    pdf.text(`Выбранная пряжа: ${yarnOption?.textContent?.trim() || '—'}`, 14, y);
     y += 6;
-    pdf.text(`Selected sample: ${sampleOption?.textContent?.trim() || '---'}`, 14, y);
+    pdf.text(`Выбранный образец: ${sampleOption?.textContent?.trim() || '—'}`, 14, y);
 
     pdf.addPage();
     pdf.setFontSize(13);
-    pdf.text('Technical information', 14, 14);
+    pdf.setTextColor(111, 76, 255);
+    pdf.text('Техническая информация и памятка', 14, 14);
+    pdf.setTextColor(30, 24, 46);
     pdf.setFontSize(10);
-    pdf.text('App version: 1.0.0', 14, 22);
+    pdf.text('Версия приложения: 1.0.0', 14, 22);
     const details = collectPatternDetailsForReport();
-    pdf.text('Parts and sizes:', 14, 30);
+    pdf.text('Детали и размеры:', 14, 30);
     let lineY = 36;
     if (!details.length) {
-      pdf.text('No parts on canvas.', 14, lineY);
+      pdf.text('На холсте пока нет деталей.', 14, lineY);
     } else {
       details.forEach((line) => {
         pdf.text(line, 14, lineY);
         lineY += 6;
       });
     }
+    lineY += 4;
+    pdf.setFontSize(11);
+    pdf.text('Что понадобится:', 14, lineY);
+    lineY += 6;
+    pdf.setFontSize(10);
+    ['Пряжа подходящей плотности.', 'Круговые спицы двух размеров.', 'Крючок, маркеры, игла с широким ушком.']
+      .forEach((line) => {
+        pdf.text(`• ${line}`, 16, lineY);
+        lineY += 6;
+      });
 
-    pdf.save(`knitting_report_${fileDate}.pdf`);
+    // Декоративный элемент: клубок и спицы (в духе примера)
+    pdf.setDrawColor(111, 76, 255);
+    pdf.setFillColor(238, 232, 255);
+    pdf.circle(160, 235, 18, 'FD');
+    pdf.line(146, 235, 174, 235);
+    pdf.line(150, 228, 170, 242);
+    pdf.line(150, 242, 170, 228);
+    pdf.setDrawColor(75, 52, 173);
+    pdf.setLineWidth(1.2);
+    pdf.line(132, 218, 190, 252);
+    pdf.line(136, 252, 186, 214);
+
+    pdf.save(`${safeProjectName}_${fileDate}.pdf`);
   } catch (err) {
     console.error('[exportToPDF]', err);
     showUserError(`Ошибка экспорта PDF: ${err.message}`);
