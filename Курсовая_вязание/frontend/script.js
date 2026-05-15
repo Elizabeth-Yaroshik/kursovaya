@@ -627,17 +627,15 @@ function applyDetailFieldsToSelection() {
   cd.yarn_id = detailYarnSelect && detailYarnSelect.value ? parseInt(detailYarnSelect.value, 10) : null;
 
   if (shapeType === 'trapezoid') {
-    cd.width_top_cm = parseOptionalFloatFromInput('detail-width-top-cm');
-    cd.width_bottom_cm = parseOptionalFloatFromInput('detail-width-bottom-cm');
-    cd.height_cm = parseOptionalFloatFromInput('detail-height-cm');
+     cd.width_top_cm = prev.width_top_cm ?? parseOptionalFloatFromInput('detail-width-top-cm');
+    cd.width_bottom_cm = prev.width_bottom_cm ?? parseOptionalFloatFromInput('detail-width-bottom-cm');
+    cd.height_cm = prev.height_cm ?? parseOptionalFloatFromInput('detail-height-cm');
     delete cd.width_cm;
-    applyGeometryToObject(obj, cd);
   } else {
-    cd.width_cm = parseOptionalFloatFromInput('detail-width-cm');
-    cd.height_cm = parseOptionalFloatFromInput('detail-height-cm');
+     cd.width_cm = prev.width_cm ?? parseOptionalFloatFromInput('detail-width-cm');
+    cd.height_cm = prev.height_cm ?? parseOptionalFloatFromInput('detail-height-cm');
     delete cd.width_top_cm;
     delete cd.width_bottom_cm;
-    applyGeometryToObject(obj, cd);
   }
 
   const computed = computeStitchesRowsFromCustomData(cd, shapeType);
@@ -736,29 +734,37 @@ async function renderPatternPreviewDataUrl(patternJson, width = 800, height = 60
 async function buildProjectPdfBlob(patternJson, projectName) {
   const jsPdfCtor = window.jspdf?.jsPDF;
   if (typeof jsPdfCtor !== 'function') throw new Error('jsPDF is not loaded.');
+
   const screenshotData = await renderPatternPreviewDataUrl(patternJson, 1200, 900);
   if (!screenshotData) throw new Error('Unable to render project image.');
+
   const now = new Date();
-  const createdAt = now.toLocaleString('en-US');
+  const createdAt = now.toLocaleString('ru-RU');
   const pdf = new jsPdfCtor({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-  pdf.setFontSize(16);
-  pdf.text('Knitting Project Report', 14, 16);
+
+  // Вместо английского заголовка – сразу название проекта
+  pdf.setFontSize(18);
+  addUnicodeLineAsImage(pdf, projectName || 'Проект без названия', 14, 16, { fontSize: 18 });
+
   pdf.setFontSize(10);
-  pdf.text(`Project: ${projectName || 'Untitled project'}`, 14, 24);
-  pdf.text(`Generated: ${createdAt}`, 14, 30);
+  addUnicodeLineAsImage(pdf, `Сформировано: ${createdAt}`, 14, 26);
+
   pdf.addImage(screenshotData, 'PNG', 14, 36, 182, 120);
+
+  // Список деталей (по желанию можно убрать, если не нужно)
   pdf.setFontSize(11);
-  pdf.text('Pattern details:', 14, 166);
-  const details = [];
+  addUnicodeLineAsImage(pdf, 'Детали выкройки:', 14, 166);
   const objects = patternJson?.objects || [];
-  objects.forEach((_, idx) => details.push(`Part ${idx + 1}`));
-  if (!details.length) details.push('No parts on canvas.');
   let y = 173;
-  details.forEach((line) => {
+  objects.forEach((_, idx) => {
     if (y > 286) return;
-    pdf.text(line, 14, y);
+    addUnicodeLineAsImage(pdf, `Деталь ${idx + 1}`, 14, y);
     y += 6;
   });
+  if (objects.length === 0) {
+    addUnicodeLineAsImage(pdf, 'Нет деталей на холсте', 14, y);
+  }
+
   return pdf.output('blob');
 }
 
@@ -849,21 +855,14 @@ async function exportToPDF() {
     const fileDate = now.toISOString().slice(0, 10);
     const pdf = new jsPdfCtor({ orientation: 'portrait', unit: 'mm', format: 'a4' });
 
-    pdf.setFillColor(111, 76, 255);
-    pdf.roundedRect(10, 8, 190, 18, 3, 3, 'F');
-    pdf.setTextColor(255, 255, 255);
-    pdf.setFontSize(15);
-    addUnicodeLineAsImage(pdf, 'Отчёт по вязальному проекту', 14, 19, { fontSize: 15, color: '#ffffff', maxWidthMm: 150 });
-    pdf.setTextColor(30, 24, 46);
-    pdf.setFontSize(10);
-    addUnicodeLineAsImage(pdf, `Проект: ${projectName}`, 14, 30);
-    addUnicodeLineAsImage(pdf, `Сформировано: ${createdAt}`, 14, 36);
+    addUnicodeLineAsImage(pdf, `Проект: ${projectName}`, 14, 14, { fontSize: 16 });
+    addUnicodeLineAsImage(pdf, `Сформировано: ${createdAt}`, 14, 20);
 
     const pageWidth = pdf.internal.pageSize.getWidth();
     const imgWidth = pageWidth - 28;
     const ratio = screenshotCanvas.height / screenshotCanvas.width;
     const imgHeight = imgWidth * ratio;
-    pdf.addImage(screenshotData, 'PNG', 14, 42, imgWidth, Math.min(imgHeight, 110));
+    pdf.addImage(screenshotData, 'PNG', 14, 42, imgWidth, Math.min(imgHeight, 300));
 
     let y = 156;
     pdf.setFontSize(12);
@@ -873,25 +872,19 @@ async function exportToPDF() {
     if (!hasCalculation) {
       addUnicodeLineAsImage(pdf, 'Расчёт ещё не запущен.', 14, y);
       y += 6;
+    }else {
+      [['Пряжа, г', calcValues.totalG], ['Пряжа, м', calcValues.totalM], ['Мотки', calcValues.skeins], ['Стоимость', calcValues.price]]
+          .forEach(([label, value]) => {
+            addUnicodeLineAsImage(pdf, `${label}: ${value}`, 14, y);
+            y += 6;
+          });
     }
-    [['Пряжа, г', calcValues.totalG], ['Пряжа, м', calcValues.totalM], ['Мотки', calcValues.skeins], ['Стоимость', calcValues.price]]
-      .forEach(([label, value]) => {
-        addUnicodeLineAsImage(pdf, `${label}: ${value}`, 14, y);
-        y += 6;
-      });
-
-    y += 2;
-    addUnicodeLineAsImage(pdf, `Выбранная пряжа: ${yarnOption?.textContent?.trim() || '—'}`, 14, y);
-    y += 6;
-    addUnicodeLineAsImage(pdf, `Выбранный образец/шов: ${sampleOption?.textContent?.trim() || '—'}`, 14, y);
-
     pdf.addPage();
     pdf.setFontSize(13);
     pdf.setTextColor(111, 76, 255);
     addUnicodeLineAsImage(pdf, 'Детали проекта', 14, 14, { fontSize: 13, color: '#6f4cff' });
     pdf.setTextColor(30, 24, 46);
     pdf.setFontSize(10);
-    addUnicodeLineAsImage(pdf, 'Версия приложения: 1.0.0', 14, 22);
     const details = collectPatternDetailsForReport();
     addUnicodeLineAsImage(pdf, 'Каждая деталь (отдельно):', 14, 30);
     let lineY = 36;
