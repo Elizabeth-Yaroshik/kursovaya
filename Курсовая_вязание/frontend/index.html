@@ -86,6 +86,29 @@
 
       <p id="library-list-empty" class="hint">Пока нет загруженных файлов.</p>
       <ul id="library-list" class="library-list" hidden></ul>
+
+      <div class="projects-section">
+        <h3 class="subheading">Проекты</h3>
+        <p class="hint">Управление сохранёнными проектами из базы пряжи.</p>
+<section class="projects-panel" id="projects-panel">
+          <div class="field">
+            <label for="input-project-name">Имя проекта</label>
+            <input type="text" id="input-project-name" placeholder="Название для сохранения" />
+          </div>
+          <div class="field">
+            <label for="select-project">Загрузить проект</label>
+            <select id="select-project">
+              <option value="">— выберите проект —</option>
+            </select>
+          </div>
+          <p class="hint">Пряжу и образец выберите во вкладках «Пряжа» и «Образцы» на этой странице.</p>
+          <div class="field"><label><input type="checkbox" id="project-is-public" /> Показывать проект другим пользователям</label></div>
+          <div class="crud-btns">
+            <button type="button" id="btn-project-update">Обновить проект</button>
+            <button type="button" id="btn-project-delete">Удалить проект</button>
+          </div>
+        </section>
+      </div>
     </div>
   </section>
 
@@ -174,8 +197,7 @@
       <nav class="tabs" role="tablist">
         <button type="button" class="tab active" data-tab="yarn" role="tab" aria-selected="true">Пряжа</button>
         <button type="button" class="tab" data-tab="swatches" role="tab" aria-selected="false">Образцы</button>
-        <button type="button" class="tab" data-tab="projects" role="tab" aria-selected="false">Проекты</button>
-      </nav>
+              </nav>
 
       <div class="tab-panels">
         <section class="tab-panel active" id="panel-yarn" role="tabpanel">
@@ -200,24 +222,7 @@
             <button type="button" id="btn-sample-del">Удалить</button>
           </div>
         </section>
-        <section class="tab-panel" id="panel-projects" role="tabpanel" hidden>
-          <div class="field">
-            <label for="input-project-name">Имя проекта</label>
-            <input type="text" id="input-project-name" placeholder="Название для сохранения" />
-          </div>
-          <div class="field">
-            <label for="select-project">Загрузить проект</label>
-            <select id="select-project">
-              <option value="">— выберите проект —</option>
-            </select>
-          </div>
-          <p class="hint">Пряжу и образец выберите во вкладках «Пряжа» и «Образцы» на этой странице.</p>
-          <div class="field"><label><input type="checkbox" id="project-is-public" /> Показывать проект другим пользователям</label></div>
-          <div class="crud-btns">
-            <button type="button" id="btn-project-update">Обновить проект</button>
-            <button type="button" id="btn-project-delete">Удалить проект</button>
-          </div>
-        </section>
+        
       </div>
     </div>
   </section>
