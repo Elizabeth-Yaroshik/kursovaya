@@ -18,6 +18,25 @@ function authHeaders(extra = {}) {
 }
 
 
+function getProjectNameInputElements() {
+  return [
+    document.getElementById('input-project-name'),
+    document.getElementById('constructor-project-name'),
+  ].filter(Boolean);
+}
+
+function getCurrentProjectName() {
+  const values = getProjectNameInputElements().map((el) => el.value.trim()).filter(Boolean);
+  return values[0] || '';
+}
+
+function setProjectName(name) {
+  getProjectNameInputElements().forEach((el) => {
+    el.value = name || '';
+  });
+}
+
+
 /** 1 пиксель на холсте ≈ 0,1 см при задании размеров детали */
 const CM_PER_PX = 0.1;
 const PX_PER_CM = 10;
@@ -817,97 +836,21 @@ function addUnicodeLineAsImage(pdf, text, x, y, opts = {}) {
 async function exportToPDF() {
   showLoading();
   try {
-    if (typeof window.html2canvas !== 'function') {
-      throw new Error('Библиотека html2canvas не загружена.');
-    }
-    const jsPdfCtor = window.jspdf?.jsPDF;
-    if (typeof jsPdfCtor !== 'function') {
-      throw new Error('Библиотека jsPDF не загружена.');
-    }
-    const canvasElement = document.getElementById('c');
-    if (!canvasElement) throw new Error('Холст #c не найден.');
-
-    const screenshotCanvas = await window.html2canvas(canvasElement, {
-      scale: 2,
-      backgroundColor: '#ffffff',
-    });
-    const screenshotData = screenshotCanvas.toDataURL('image/png');
-
-    const yarnOption = document.querySelector('#select-yarn option:checked');
-    const sampleOption = document.querySelector('#select-sample option:checked');
-    const hasCalculation = !document.getElementById('calc-result-values')?.hidden;
-    const calcValues = {
-      totalG: document.getElementById('calc-total-g')?.textContent?.trim() || '—',
-      totalM: document.getElementById('calc-total-m')?.textContent?.trim() || '—',
-      skeins: document.getElementById('calc-skeins')?.textContent?.trim() || '—',
-      price: document.getElementById('calc-price')?.textContent?.trim() || '—',
-    };
-
-    const projectNameInput = document.getElementById('input-project-name');
-    const rawProjectName = projectNameInput?.value?.trim() || '';
-    const projectName = rawProjectName || 'Проект_без_названия';
+    const projectName = getCurrentProjectName() || 'Проект_без_названия';
     const safeProjectName = projectName
-      .replace(/[\\/:*?"<>|]+/g, '_')
+      .replace(/[\/:*?"<>|]+/g, '_')
       .replace(/\s+/g, '_')
       .slice(0, 80);
-    const now = new Date();
-    const createdAt = now.toLocaleString('ru-RU');
-    const fileDate = now.toISOString().slice(0, 10);
-    const pdf = new jsPdfCtor({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-
-    addUnicodeLineAsImage(pdf, `Проект: ${projectName}`, 14, 14, { fontSize: 16 });
-    addUnicodeLineAsImage(pdf, `Сформировано: ${createdAt}`, 14, 20);
-
-    const pageWidth = pdf.internal.pageSize.getWidth();
-    const imgWidth = pageWidth - 28;
-    const ratio = screenshotCanvas.height / screenshotCanvas.width;
-    const imgHeight = imgWidth * ratio;
-    pdf.addImage(screenshotData, 'PNG', 14, 42, imgWidth, Math.min(imgHeight, 300));
-
-    let y = 156;
-    pdf.setFontSize(12);
-    addUnicodeLineAsImage(pdf, 'Использованная пряжа и расчёт', 14, y, { fontSize: 12 });
-    y += 7;
-    pdf.setFontSize(10);
-    if (!hasCalculation) {
-      addUnicodeLineAsImage(pdf, 'Расчёт ещё не запущен.', 14, y);
-      y += 6;
-    }else {
-      [['Пряжа, г', calcValues.totalG], ['Пряжа, м', calcValues.totalM], ['Мотки', calcValues.skeins], ['Стоимость', calcValues.price]]
-          .forEach(([label, value]) => {
-            addUnicodeLineAsImage(pdf, `${label}: ${value}`, 14, y);
-            y += 6;
-          });
-    }
-    pdf.addPage();
-    pdf.setFontSize(13);
-    pdf.setTextColor(111, 76, 255);
-    addUnicodeLineAsImage(pdf, 'Детали проекта', 14, 14, { fontSize: 13, color: '#6f4cff' });
-    pdf.setTextColor(30, 24, 46);
-    pdf.setFontSize(10);
-    const details = collectPatternDetailsForReport();
-    addUnicodeLineAsImage(pdf, 'Каждая деталь (отдельно):', 14, 30);
-    let lineY = 36;
-    if (!details.length) {
-      addUnicodeLineAsImage(pdf, 'Пока нет деталей на холсте.', 14, lineY);
-    } else {
-      details.forEach((line) => {
-        addUnicodeLineAsImage(pdf, line, 14, lineY);
-        lineY += 6;
-      });
-    }
-    lineY += 4;
-    pdf.setFontSize(11);
-    addUnicodeLineAsImage(pdf, 'Дополнительно:', 14, lineY, { fontSize: 11 });
-    lineY += 6;
-    pdf.setFontSize(10);
-    ['Убедитесь, что плотность совпадает с образцом.', 'Проверьте шов/образец для каждой детали.', 'Числа петель и рядов указаны как примерный расчёт.']
-      .forEach((line) => {
-        addUnicodeLineAsImage(pdf, `- ${line}`, 16, lineY);
-        lineY += 6;
-      });
-
-    pdf.save(`${safeProjectName}_${fileDate}.pdf`);
+    const fileDate = new Date().toISOString().slice(0, 10);
+    const blob = await buildProjectPdfBlob(patternToJSON(), projectName);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${safeProjectName}_${fileDate}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 30000);
   } catch (err) {
     console.error('[exportToPDF]', err);
     showUserError(`Ошибка экспорта PDF: ${err.message}`);
@@ -950,6 +893,22 @@ async function loadYarns(opts = {}) {
   } finally {
     if (!skipOverlay) hideLoading();
   }
+}
+
+function renderYarnOptions() {
+  const search = document.getElementById('search-yarn')?.value?.trim().toLowerCase() || '';
+  const filtered = yarnsCache.filter((y) => !search || String(y.name || '').toLowerCase().includes(search));
+  ['select-yarn', 'detail-yarn-id'].map((id) => document.getElementById(id)).filter(Boolean).forEach((sel) => {
+    const prev = sel.value;
+    sel.innerHTML = '<option value="">— не выбрано —</option>';
+    filtered.forEach((y) => {
+      const opt = document.createElement('option');
+      opt.value = String(y.id);
+      opt.textContent = y.name;
+      sel.appendChild(opt);
+    });
+    if (prev && filtered.some((y) => String(y.id) === prev)) sel.value = prev;
+  });
 }
 
 function addYarn() {
@@ -1029,6 +988,22 @@ async function loadSamples(opts = {}) {
   }
 }
 
+function renderSampleOptions() {
+  const search = document.getElementById('search-sample')?.value?.trim().toLowerCase() || '';
+  const filtered = samplesCache.filter((row) => !search || String(row.name || '').toLowerCase().includes(search));
+  ['select-sample', 'detail-sample-id'].map((id) => document.getElementById(id)).filter(Boolean).forEach((sel) => {
+    const prev = sel.value;
+    sel.innerHTML = '<option value="">— не выбрано —</option>';
+    filtered.forEach((row) => {
+      const opt = document.createElement('option');
+      opt.value = String(row.id);
+      opt.textContent = row.name;
+      sel.appendChild(opt);
+    });
+    if (prev && filtered.some((row) => String(row.id) === prev)) sel.value = prev;
+  });
+}
+
 function addSample() {
   document.getElementById('dialog-sample-title').textContent = 'Добавить образец';
   document.getElementById('sample-edit-id').value = '';
@@ -1081,7 +1056,7 @@ async function saveProject() {
     alert('Холст не готов');
     return;
   }
-  const name = document.getElementById('input-project-name').value.trim();
+  const name = getCurrentProjectName();
   if (!name) {
     alert('Введите имя проекта');
     return;
@@ -1179,7 +1154,7 @@ async function updateCurrentProject() {
     alert('Сначала загрузите проект из списка или сохраните новый.');
     return;
   }
-  const name = document.getElementById('input-project-name').value.trim();
+  const name = getCurrentProjectName();
   if (!name) {
     alert('Введите имя проекта');
     return;
@@ -1221,7 +1196,7 @@ async function deleteCurrentProject() {
   showLoading();
   try {
     await apiFetchJson(`/api/projects/${currentProjectId}`, { method: 'DELETE' });
-    document.getElementById('input-project-name').value = '';
+    setProjectName('');
     document.getElementById('select-project').value = '';
     resetCanvasToNewProject();
     await loadProjectList({ skipOverlay: true });
@@ -1242,7 +1217,7 @@ async function loadProjectById(projectId) {
   showLoading();
   try {
     const project = await apiGet(`/api/projects/${projectId}`);
-    document.getElementById('input-project-name').value = project.name || '';
+    setProjectName(project.name || '');
 
     const yid = project.yarn_id != null ? String(project.yarn_id) : '';
     const sid = project.sample_id != null ? String(project.sample_id) : '';
@@ -1619,27 +1594,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     applyDetailFieldsToSelection();
   });
 
-  const tabs = document.querySelectorAll('.tab');
-  const panels = {
-    yarn: document.getElementById('panel-yarn'),
-    swatches: document.getElementById('panel-swatches'),
-  };
-
-  tabs.forEach((tab) => {
-    tab.addEventListener('click', () => {
-      const name = tab.dataset.tab;
-      tabs.forEach((t) => {
-        const on = t === tab;
-        t.classList.toggle('active', on);
-        t.setAttribute('aria-selected', on ? 'true' : 'false');
-      });
-      Object.entries(panels).forEach(([key, panel]) => {
-        const on = key === name;
-        panel.classList.toggle('active', on);
-        panel.hidden = !on;
-      });
-    });
-  });
 
   document.getElementById('btn-yarn-add').addEventListener('click', () => addYarn());
   document.getElementById('btn-yarn-edit').addEventListener('click', () => updateYarn());
@@ -1648,6 +1602,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('btn-sample-add').addEventListener('click', () => addSample());
   document.getElementById('btn-sample-edit').addEventListener('click', () => updateSample());
   document.getElementById('btn-sample-del').addEventListener('click', () => deleteSample());
+
+  document.getElementById('search-yarn')?.addEventListener('input', renderYarnOptions);
+  document.getElementById('search-sample')?.addEventListener('input', renderSampleOptions);
+
+  const myProjectNameInput = document.getElementById('input-project-name');
+  const constructorProjectNameInput = document.getElementById('constructor-project-name');
+  myProjectNameInput?.addEventListener('input', () => { if (constructorProjectNameInput) constructorProjectNameInput.value = myProjectNameInput.value; });
+  constructorProjectNameInput?.addEventListener('input', () => { if (myProjectNameInput) myProjectNameInput.value = constructorProjectNameInput.value; });
 
   document.getElementById('yarn-form-cancel').addEventListener('click', () => {
     document.getElementById('dialog-yarn').close();

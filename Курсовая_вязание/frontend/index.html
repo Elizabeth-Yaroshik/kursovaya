@@ -166,6 +166,11 @@
           </div>
         </section>
 
+        <div class="field">
+            <label for="constructor-project-name">Название проекта</label>
+            <input type="text" id="constructor-project-name" placeholder="Введите название проекта для сохранения" />
+          </div>
+
         <div class="actions">
           <button type="button" id="btn-save">Сохранить</button>
           <button type="button" id="btn-calc">Рассчитать</button>
@@ -197,37 +202,37 @@
   </section>
 
   <section id="page-yarn-base" class="page hidden" aria-label="База пряжи">
-    <div class="yarn-base">
-      <nav class="tabs" role="tablist">
-        <button type="button" class="tab active" data-tab="yarn" role="tab" aria-selected="true">Пряжа</button>
-        <button type="button" class="tab" data-tab="swatches" role="tab" aria-selected="false">Образцы</button>
-              </nav>
-
-      <div class="tab-panels">
-        <section class="tab-panel active" id="panel-yarn" role="tabpanel">
-          <div class="field">
-            <label for="select-yarn">Пряжа</label>
-            <select id="select-yarn"></select>
-          </div>
-          <div class="crud-btns">
-            <button type="button" id="btn-yarn-add">Добавить</button>
-            <button type="button" id="btn-yarn-edit">Изменить</button>
-            <button type="button" id="btn-yarn-del">Удалить</button>
-          </div>
-        </section>
-        <section class="tab-panel" id="panel-swatches" role="tabpanel" hidden>
-          <div class="field">
-            <label for="select-sample">Образец</label>
-            <select id="select-sample"></select>
-          </div>
-          <div class="crud-btns">
-            <button type="button" id="btn-sample-add">Добавить</button>
-            <button type="button" id="btn-sample-edit">Изменить</button>
-            <button type="button" id="btn-sample-del">Удалить</button>
-          </div>
-        </section>
-        
-      </div>
+    <div class="yarn-base split-layout">
+      <section class="tab-panel active" id="panel-yarn">
+        <div class="field">
+          <label for="search-yarn">Поиск пряжи</label>
+          <input type="text" id="search-yarn" placeholder="Введите название пряжи" />
+        </div>
+        <div class="field">
+          <label for="select-yarn">Пряжа</label>
+          <select id="select-yarn" size="16"></select>
+        </div>
+        <div class="crud-btns">
+          <button type="button" id="btn-yarn-add">Добавить</button>
+          <button type="button" id="btn-yarn-edit">Изменить</button>
+          <button type="button" id="btn-yarn-del">Удалить</button>
+        </div>
+      </section>
+      <section class="tab-panel active" id="panel-swatches">
+        <div class="field">
+          <label for="search-sample">Поиск образца</label>
+          <input type="text" id="search-sample" placeholder="Введите название образца" />
+        </div>
+        <div class="field">
+          <label for="select-sample">Образец</label>
+          <select id="select-sample" size="16"></select>
+        </div>
+        <div class="crud-btns">
+          <button type="button" id="btn-sample-add">Добавить</button>
+          <button type="button" id="btn-sample-edit">Изменить</button>
+          <button type="button" id="btn-sample-del">Удалить</button>
+        </div>
+      </section>
     </div>
   </section>
 

@@ -413,3 +413,21 @@ button:hover {
 .auth-card input,.auth-card button{padding:.6rem}
 .main-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem;max-width:800px}
 .main-nav-btn{padding:1.2rem;font-size:1.1rem;font-weight:700}
+
+.yarn-base.split-layout {
+  max-width: none;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.yarn-base.split-layout .tab-panel {
+  min-height: 70vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.yarn-base.split-layout select {
+  width: 100%;
+  min-height: 52vh;
+}
