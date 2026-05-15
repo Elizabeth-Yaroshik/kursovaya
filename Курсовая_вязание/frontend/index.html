@@ -17,8 +17,10 @@
 
   <nav id="top-nav" class="top-nav" aria-label="Разделы приложения" hidden>
     <button type="button" class="top-nav-btn" data-page="my-projects">Мои проекты</button>
+    <button type="button" class="top-nav-btn" data-page="community-projects">Проекты сообщества</button>
     <button type="button" class="top-nav-btn active" data-page="constructor">Конструктор</button>
     <button type="button" class="top-nav-btn" data-page="yarn-base">База пряжи</button>
+    <button type="button" class="top-nav-btn" id="btn-home">На главную</button>
     <button type="button" id="btn-logout" class="top-nav-btn">Выйти</button>
   </nav>
 
@@ -45,8 +47,23 @@
     <h2 id="main-welcome">Добро пожаловать!</h2>
     <div class="main-grid">
       <button class="main-nav-btn" data-page="my-projects">Мои проекты</button>
+      <button class="main-nav-btn" data-page="community-projects">Проекты сообщества</button>
       <button class="main-nav-btn" data-page="yarn-base">База пряжи</button>
       <button class="main-nav-btn" data-page="constructor">Конструктор</button>
+    </div>
+  </section>
+  <section id="page-community-projects" class="page hidden">
+    <h2>Проекты сообщества</h2>
+    <div class="field"><label for="community-sort">Сортировка</label><select id="community-sort"><option value="new">Сначала новые</option><option value="alpha_asc">По алфавиту (А-Я)</option><option value="alpha_desc">По алфавиту (Я-А)</option><option value="rating_desc">По рейтингу (высокий)</option></select></div>
+    <div class="field"><label for="community-min-rating">Мин. оценка</label><input id="community-min-rating" type="number" min="0" max="5" step="0.1" placeholder="например 4.0"/></div>
+    <button type="button" id="btn-community-refresh">Обновить список</button>
+    <ul id="community-project-list"></ul>
+    <div id="community-review-box" class="hidden">
+      <h3>Оставить отзыв</h3>
+      <input type="hidden" id="community-project-id" />
+      <div class="field"><label for="community-rating">Оценка (1-5)</label><input id="community-rating" type="number" min="1" max="5" step="1"/></div>
+      <div class="field"><label for="community-comment">Комментарий</label><textarea id="community-comment"></textarea></div>
+      <button type="button" id="btn-community-review-send">Отправить</button>
     </div>
   </section>
 
@@ -187,6 +204,7 @@
             </select>
           </div>
           <p class="hint">Пряжу и образец выберите во вкладках «Пряжа» и «Образцы» на этой странице.</p>
+          <div class="field"><label><input type="checkbox" id="project-is-public" /> Показывать проект другим пользователям</label></div>
           <div class="crud-btns">
             <button type="button" id="btn-project-update">Обновить проект</button>
             <button type="button" id="btn-project-delete">Удалить проект</button>

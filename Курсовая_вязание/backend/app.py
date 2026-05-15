@@ -216,6 +216,17 @@ def delete_sample(sample_id):
 @login_required
 def get_projects(): return jsonify(database.get_all_projects(request.user_id)), 200
 
+@app.route('/api/public-projects', methods=['GET'])
+@login_required
+def get_public_projects():
+    sort = (request.args.get('sort') or 'new').strip()
+    min_rating_raw = request.args.get('min_rating')
+    min_rating = None
+    if min_rating_raw not in (None, ''):
+        min_rating, err = validate_positive_number(min_rating_raw, 'min_rating', allow_zero=True)
+        if err: return err
+    return jsonify(database.get_public_projects(sort=sort, min_rating=min_rating)), 200
+
 @app.route('/api/projects/<int:project_id>', methods=['GET'])
 @login_required
 def get_project(project_id):
@@ -268,6 +279,10 @@ def update_project(project_id):
         if sample_id is not None and not database.get_sample_by_id(request.user_id, sample_id):
             return jsonify({"error": "Sample not found"}), 404
         payload['sample_id'] = sample_id
+    if 'is_public' in data:
+        if not isinstance(data.get('is_public'), bool):
+            return jsonify({"error": "is_public must be boolean"}), 400
+        payload['is_public'] = data.get('is_public')
     ok = database.update_project(request.user_id, project_id, **payload)
     return (jsonify({'message':'ok'}),200) if ok else (jsonify({'error':'Project not found'}),404)
 
@@ -276,6 +291,26 @@ def update_project(project_id):
 def delete_project(project_id):
     ok = database.delete_project(request.user_id, project_id)
     return (jsonify({'message':'ok'}),200) if ok else (jsonify({'error':'Project not found'}),404)
+
+@app.route('/api/public-projects/<int:project_id>/reviews', methods=['GET'])
+@login_required
+def get_project_reviews(project_id):
+    return jsonify(database.get_project_reviews(project_id)), 200
+
+@app.route('/api/public-projects/<int:project_id>/reviews', methods=['POST'])
+@login_required
+def add_project_review(project_id):
+    data, error = _require_json_object()
+    if error: return error
+    rating = data.get('rating')
+    comment = (data.get('comment') or '').strip()
+    if rating is None and not comment:
+        return jsonify({"error": "rating or comment is required"}), 400
+    if rating is not None:
+        if not isinstance(rating, int) or rating < 1 or rating > 5:
+            return jsonify({"error": "rating must be integer from 1 to 5"}), 400
+    rid = database.add_project_review(request.user_id, project_id, rating=rating, comment=comment or None)
+    return jsonify({"id": rid}), 201
 
 @app.route('/api/calculate', methods=['POST'])
 @login_required

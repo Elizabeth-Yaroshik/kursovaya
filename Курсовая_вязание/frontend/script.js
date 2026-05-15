@@ -985,6 +985,7 @@ async function saveProject() {
         pattern_json,
         yarn_id,
         sample_id,
+        is_public: document.getElementById('project-is-public')?.checked || false,
       }),
     });
     if (res && res.id != null) {
@@ -1081,6 +1082,7 @@ async function updateCurrentProject() {
         pattern_json: patternToJSON(),
         yarn_id,
         sample_id,
+        is_public: document.getElementById('project-is-public')?.checked || false,
       }),
     });
     alert('Проект обновлён');
@@ -1130,6 +1132,7 @@ async function loadProjectById(projectId) {
     const sid = project.sample_id != null ? String(project.sample_id) : '';
     document.getElementById('select-yarn').value = yid;
     document.getElementById('select-sample').value = sid;
+    document.getElementById('project-is-public').checked = Boolean(project.is_public);
 
     const json = project.pattern_json;
     if (json == null) {
@@ -1164,6 +1167,7 @@ const PAGE_SECTION_IDS = {
   register: 'page-register',
   main: 'page-main',
   'my-projects': 'page-my-projects',
+  'community-projects': 'page-community-projects',
   constructor: 'page-constructor',
   'yarn-base': 'page-yarn-base',
 };
@@ -1199,6 +1203,44 @@ function showPage(pageKey) {
       alert(err.message);
     });
   }
+  if (pageKey === 'community-projects') {
+    loadCommunityProjects().catch((err) => showUserError(err.message));
+  }
+}
+
+async function loadCommunityProjects() {
+  const sort = document.getElementById('community-sort')?.value || 'new';
+  const minRating = document.getElementById('community-min-rating')?.value?.trim();
+  const qs = new URLSearchParams({ sort });
+  if (minRating) qs.set('min_rating', minRating);
+  const projects = await apiGet(`/api/public-projects?${qs.toString()}`);
+  const list = document.getElementById('community-project-list');
+  if (!list) return;
+  list.innerHTML = '';
+  (projects || []).forEach((p) => {
+    const li = document.createElement('li');
+    li.innerHTML = `<strong>${p.name}</strong> — автор: ${p.owner_username}, рейтинг: ${p.avg_rating ?? 'нет'} (${p.reviews_count})`;
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.textContent = 'Оценить / Комментировать';
+    btn.addEventListener('click', () => {
+      document.getElementById('community-project-id').value = String(p.id);
+      document.getElementById('community-review-box').classList.remove('hidden');
+    });
+    li.appendChild(btn);
+    list.appendChild(li);
+  });
+}
+
+async function sendCommunityReview() {
+  const projectId = document.getElementById('community-project-id')?.value;
+  if (!projectId) return alert('Сначала выберите проект');
+  const ratingRaw = document.getElementById('community-rating')?.value?.trim() || '';
+  const comment = document.getElementById('community-comment')?.value?.trim() || '';
+  const payload = { comment };
+  if (ratingRaw) payload.rating = parseInt(ratingRaw, 10);
+  await apiFetchJson(`/api/public-projects/${projectId}/reviews`, { method: 'POST', body: JSON.stringify(payload) });
+  alert('Отзыв отправлен');
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -1651,6 +1693,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (goRegister) goRegister.addEventListener('click', () => showPage('register'));
   if (goLogin) goLogin.addEventListener('click', () => showPage('login'));
   document.getElementById('btn-logout')?.addEventListener('click', () => { authToken=''; currentUser=null; localStorage.removeItem('token'); showPage('login'); });
+  document.getElementById('btn-home')?.addEventListener('click', () => showPage('main'));
+  document.getElementById('btn-community-refresh')?.addEventListener('click', () => loadCommunityProjects().catch((err) => showUserError(err.message)));
+  document.getElementById('btn-community-review-send')?.addEventListener('click', () => sendCommunityReview().catch((err) => showUserError(err.message)));
   document.getElementById('form-login')?.addEventListener('submit', async (e) => { e.preventDefault(); try { const data = await apiFetchJson('/api/login',{ method:'POST', body: JSON.stringify({ username: document.getElementById('login-username').value.trim(), password: document.getElementById('login-password').value })}); authToken=data.token; localStorage.setItem('token',authToken); const me=await apiGet('/api/me'); currentUser=me; document.getElementById('main-welcome').textContent=`Добро пожаловать, ${me.username}!`; showPage('main'); await loadYarns({skipOverlay:true}); await loadSamples({skipOverlay:true}); await loadProjectList({skipOverlay:true}); } catch(err){ showUserError(err.message);} });
   document.getElementById('form-register')?.addEventListener('submit', async (e) => { e.preventDefault(); try { const data = await apiFetchJson('/api/register',{ method:'POST', body: JSON.stringify({ username: document.getElementById('register-username').value.trim(), password: document.getElementById('register-password').value })}); authToken=data.token; localStorage.setItem('token',authToken); const me=await apiGet('/api/me'); currentUser=me; document.getElementById('main-welcome').textContent=`Добро пожаловать, ${me.username}!`; showPage('main'); await loadYarns({skipOverlay:true}); await loadSamples({skipOverlay:true}); await loadProjectList({skipOverlay:true}); } catch(err){ showUserError(err.message);} });
   document.querySelectorAll('.main-nav-btn').forEach((b)=>b.addEventListener('click', ()=>showPage(b.dataset.page)));
