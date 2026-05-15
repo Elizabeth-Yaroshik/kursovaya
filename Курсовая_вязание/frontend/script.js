@@ -679,6 +679,48 @@ function collectPatternDetailsForReport() {
   });
 }
 
+async function renderPatternPreviewDataUrl(patternJson, width = 260, height = 170) {
+  if (!patternJson || typeof patternJson !== 'object' || !window.fabric) return '';
+  const c = document.createElement('canvas');
+  c.width = width;
+  c.height = height;
+  const staticCanvas = new fabric.StaticCanvas(c, { width, height, backgroundColor: '#ffffff' });
+  await new Promise((resolve) => staticCanvas.loadFromJSON(patternJson, resolve));
+  staticCanvas.renderAll();
+  const url = c.toDataURL('image/png');
+  staticCanvas.dispose();
+  return url;
+}
+
+async function buildProjectPdfBlob(patternJson, projectName) {
+  const jsPdfCtor = window.jspdf?.jsPDF;
+  if (typeof jsPdfCtor !== 'function') throw new Error('jsPDF is not loaded.');
+  const screenshotData = await renderPatternPreviewDataUrl(patternJson, 1200, 900);
+  if (!screenshotData) throw new Error('Unable to render project image.');
+  const now = new Date();
+  const createdAt = now.toLocaleString('en-US');
+  const pdf = new jsPdfCtor({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  pdf.setFontSize(16);
+  pdf.text('Knitting Project Report', 14, 16);
+  pdf.setFontSize(10);
+  pdf.text(`Project: ${projectName || 'Untitled project'}`, 14, 24);
+  pdf.text(`Generated: ${createdAt}`, 14, 30);
+  pdf.addImage(screenshotData, 'PNG', 14, 36, 182, 120);
+  pdf.setFontSize(11);
+  pdf.text('Pattern details:', 14, 166);
+  const details = [];
+  const objects = patternJson?.objects || [];
+  objects.forEach((_, idx) => details.push(`Part ${idx + 1}`));
+  if (!details.length) details.push('No parts on canvas.');
+  let y = 173;
+  details.forEach((line) => {
+    if (y > 286) return;
+    pdf.text(line, 14, y);
+    y += 6;
+  });
+  return pdf.output('blob');
+}
+
 async function exportToPDF() {
   showLoading();
   try {
@@ -724,11 +766,11 @@ async function exportToPDF() {
     pdf.roundedRect(10, 8, 190, 18, 3, 3, 'F');
     pdf.setTextColor(255, 255, 255);
     pdf.setFontSize(15);
-    pdf.text('Отчёт по вязальному проекту', 14, 19);
+    pdf.text('Knitting Project Report', 14, 19);
     pdf.setTextColor(30, 24, 46);
     pdf.setFontSize(10);
-    pdf.text(`Проект: ${projectName}`, 14, 30);
-    pdf.text(`Дата создания: ${createdAt}`, 14, 36);
+    pdf.text(`Project: ${projectName}`, 14, 30);
+    pdf.text(`Generated: ${createdAt}`, 14, 36);
 
     const pageWidth = pdf.internal.pageSize.getWidth();
     const imgWidth = pageWidth - 28;
@@ -738,36 +780,36 @@ async function exportToPDF() {
 
     let y = 156;
     pdf.setFontSize(12);
-    pdf.text('Результаты расчёта', 14, y);
+    pdf.text('Calculation results', 14, y);
     y += 7;
     pdf.setFontSize(10);
     if (!hasCalculation) {
-      pdf.text('Расчёт ещё не выполнялся.', 14, y);
+      pdf.text('Calculation has not been run yet.', 14, y);
       y += 6;
     }
-    [['Пряжа, г', calcValues.totalG], ['Пряжа, м', calcValues.totalM], ['Мотков', calcValues.skeins], ['Стоимость', calcValues.price]]
+    [['Yarn, g', calcValues.totalG], ['Yarn, m', calcValues.totalM], ['Skeins', calcValues.skeins], ['Price', calcValues.price]]
       .forEach(([label, value]) => {
         pdf.text(`${label}: ${value}`, 14, y);
         y += 6;
       });
 
     y += 2;
-    pdf.text(`Выбранная пряжа: ${yarnOption?.textContent?.trim() || '—'}`, 14, y);
+    pdf.text(`Selected yarn: ${yarnOption?.textContent?.trim() || '—'}`, 14, y);
     y += 6;
-    pdf.text(`Выбранный образец: ${sampleOption?.textContent?.trim() || '—'}`, 14, y);
+    pdf.text(`Selected swatch: ${sampleOption?.textContent?.trim() || '—'}`, 14, y);
 
     pdf.addPage();
     pdf.setFontSize(13);
     pdf.setTextColor(111, 76, 255);
-    pdf.text('Техническая информация и памятка', 14, 14);
+    pdf.text('Technical details', 14, 14);
     pdf.setTextColor(30, 24, 46);
     pdf.setFontSize(10);
-    pdf.text('Версия приложения: 1.0.0', 14, 22);
+    pdf.text('App version: 1.0.0', 14, 22);
     const details = collectPatternDetailsForReport();
-    pdf.text('Детали и размеры:', 14, 30);
+    pdf.text('Parts and dimensions:', 14, 30);
     let lineY = 36;
     if (!details.length) {
-      pdf.text('На холсте пока нет деталей.', 14, lineY);
+      pdf.text('No parts on canvas yet.', 14, lineY);
     } else {
       details.forEach((line) => {
         pdf.text(line, 14, lineY);
@@ -776,26 +818,14 @@ async function exportToPDF() {
     }
     lineY += 4;
     pdf.setFontSize(11);
-    pdf.text('Что понадобится:', 14, lineY);
+    pdf.text('Required tools:', 14, lineY);
     lineY += 6;
     pdf.setFontSize(10);
-    ['Пряжа подходящей плотности.', 'Круговые спицы двух размеров.', 'Крючок, маркеры, игла с широким ушком.']
+    ['Yarn with matching gauge.', 'Circular needles in two sizes.', 'Hook, markers, tapestry needle.']
       .forEach((line) => {
-        pdf.text(`• ${line}`, 16, lineY);
+        pdf.text(`- ${line}`, 16, lineY);
         lineY += 6;
       });
-
-    // Декоративный элемент: клубок и спицы (в духе примера)
-    pdf.setDrawColor(111, 76, 255);
-    pdf.setFillColor(238, 232, 255);
-    pdf.circle(160, 235, 18, 'FD');
-    pdf.line(146, 235, 174, 235);
-    pdf.line(150, 228, 170, 242);
-    pdf.line(150, 242, 170, 228);
-    pdf.setDrawColor(75, 52, 173);
-    pdf.setLineWidth(1.2);
-    pdf.line(132, 218, 190, 252);
-    pdf.line(136, 252, 186, 214);
 
     pdf.save(`${safeProjectName}_${fileDate}.pdf`);
   } catch (err) {
@@ -1217,9 +1247,34 @@ async function loadCommunityProjects() {
   const list = document.getElementById('community-project-list');
   if (!list) return;
   list.innerHTML = '';
+  const reviewBox = document.getElementById('community-review-box');
+  if (reviewBox) reviewBox.classList.add('hidden');
   (projects || []).forEach((p) => {
     const li = document.createElement('li');
-    li.innerHTML = `<strong>${p.name}</strong> — автор: ${p.owner_username}, рейтинг: ${p.avg_rating ?? 'нет'} (${p.reviews_count})`;
+    li.className = 'community-project-item';
+    const title = document.createElement('button');
+    title.type = 'button';
+    title.className = 'community-project-open';
+    title.innerHTML = `<strong>${p.name}</strong> — автор: ${p.owner_username}, рейтинг: ${p.avg_rating ?? 'нет'} (${p.reviews_count})`;
+    title.addEventListener('click', async () => {
+      try {
+        showLoading();
+        const blob = await buildProjectPdfBlob(p.pattern_json, p.name);
+        const url = URL.createObjectURL(blob);
+        window.open(url, '_blank', 'noopener');
+        window.setTimeout(() => URL.revokeObjectURL(url), 30000);
+      } catch (err) {
+        showUserError(`Не удалось открыть PDF проекта: ${err.message}`);
+      } finally {
+        hideLoading();
+      }
+    });
+    const preview = document.createElement('img');
+    preview.className = 'community-project-preview';
+    preview.alt = `Превью проекта ${p.name}`;
+    renderPatternPreviewDataUrl(p.pattern_json).then((src) => {
+      if (src) preview.src = src;
+    });
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.textContent = 'Оценить / Комментировать';
@@ -1227,6 +1282,8 @@ async function loadCommunityProjects() {
       document.getElementById('community-project-id').value = String(p.id);
       document.getElementById('community-review-box').classList.remove('hidden');
     });
+    li.appendChild(title);
+    li.appendChild(preview);
     li.appendChild(btn);
     list.appendChild(li);
   });
