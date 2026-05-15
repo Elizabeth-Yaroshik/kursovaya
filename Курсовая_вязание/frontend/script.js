@@ -679,7 +679,7 @@ function collectPatternDetailsForReport() {
   });
 }
 
-async function renderPatternPreviewDataUrl(patternJson, width = 260, height = 170) {
+async function renderPatternPreviewDataUrl(patternJson, width = 800, height = 600) {
   if (!patternJson || typeof patternJson !== 'object' || !window.fabric) return '';
   const c = document.createElement('canvas');
   c.width = width;
